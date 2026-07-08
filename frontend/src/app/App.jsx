@@ -1,7 +1,5 @@
+import { DashboardPage } from "../features/dashboard/DashboardPage.jsx";
+
 export function App() {
-  return (
-    <main>
-      <h1>Korean Learning</h1>
-    </main>
-  );
+  return <DashboardPage />;
 }
