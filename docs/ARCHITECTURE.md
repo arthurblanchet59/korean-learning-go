@@ -33,4 +33,6 @@ Les notes possibles:
 
 ## Stockage
 
-La premiere version peut fonctionner avec SQLite pour rester simple et portable. Le backend deviendra ensuite la source de verite pour le front et le TUI.
+Le backend est la source de verite des decks, cartes et reviews. Le front ne garde pas de donnees metier en dur: il consomme l'API.
+
+La stack locale cible PostgreSQL via Docker Compose. Un repository memoire reste disponible si `DATABASE_URL` est absent, principalement pour demarrer l'API sans dependance externe.

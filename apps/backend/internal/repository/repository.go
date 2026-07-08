@@ -20,3 +20,7 @@ type CardRepository interface {
 	FindCardByID(ctx context.Context, id string) (core.Card, error)
 	UpdateCard(ctx context.Context, card core.Card) error
 }
+
+type ReviewRepository interface {
+	CreateReview(ctx context.Context, review core.Review) error
+}

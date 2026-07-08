@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/arthurblanchet59/korean-learning-go/apps/backend/internal/repository"
@@ -11,14 +12,16 @@ import (
 type StudyService struct {
 	decks     repository.DeckRepository
 	cards     repository.CardRepository
+	reviews   repository.ReviewRepository
 	scheduler core.Scheduler
 	now       func() time.Time
 }
 
-func NewStudyService(decks repository.DeckRepository, cards repository.CardRepository, scheduler core.Scheduler) *StudyService {
+func NewStudyService(decks repository.DeckRepository, cards repository.CardRepository, reviews repository.ReviewRepository, scheduler core.Scheduler) *StudyService {
 	return &StudyService{
 		decks:     decks,
 		cards:     cards,
+		reviews:   reviews,
 		scheduler: scheduler,
 		now:       func() time.Time { return time.Now().UTC() },
 	}
@@ -56,20 +59,27 @@ func (service *StudyService) AnswerCard(ctx context.Context, cardID string, rati
 		return core.Review{}, err
 	}
 
+	reviewedAt := service.now()
 	previous := card.ReviewState
-	next := service.scheduler.Schedule(previous, rating, service.now())
+	next := service.scheduler.Schedule(previous, rating, reviewedAt)
 	card.ReviewState = next
 
 	if err := service.cards.UpdateCard(ctx, card); err != nil {
 		return core.Review{}, err
 	}
 
-	return core.Review{
-		ID:         "review-" + cardID,
+	review := core.Review{
+		ID:         fmt.Sprintf("review-%s-%d", cardID, reviewedAt.UnixNano()),
 		CardID:     cardID,
 		Rating:     rating,
 		ReviewedAt: next.LastReviewAt,
 		Previous:   previous,
 		Next:       next,
-	}, nil
+	}
+
+	if err := service.reviews.CreateReview(ctx, review); err != nil {
+		return core.Review{}, err
+	}
+
+	return review, nil
 }

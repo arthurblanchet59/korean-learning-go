@@ -33,7 +33,7 @@ docs/
 ## Commandes prevues
 
 ```powershell
-go test ./...
+go test ./apps/backend/... ./packages/core
 go run ./apps/backend
 go run ./apps/tui -- today
 go run ./apps/tui -- review
@@ -43,7 +43,40 @@ Pour le front:
 
 ```powershell
 cd frontend
-npm run dev
+corepack pnpm install
+corepack pnpm dev
+```
+
+## Lancement avec Docker
+
+La stack Docker lance:
+
+- PostgreSQL;
+- le backend Go sur `http://localhost:8080`;
+- le frontend React/Nginx sur `http://localhost:5173`.
+
+```powershell
+docker compose up --build
+```
+
+Docker Desktop doit etre demarre avant d'executer cette commande.
+
+Variables utiles:
+
+```txt
+HTTP_ADDR=:8080
+DATABASE_URL=postgres://korean:korean@localhost:5432/korean_learning?sslmode=disable
+DB_AUTO_MIGRATE=true
+DB_SEED=true
+VITE_API_BASE_URL=http://localhost:8080/api
+```
+
+En local sans Docker, il faut demarrer PostgreSQL puis lancer:
+
+```powershell
+cd apps/backend
+$env:DATABASE_URL="postgres://korean:korean@localhost:5432/korean_learning?sslmode=disable"
+go run .
 ```
 
 ## Roadmap courte

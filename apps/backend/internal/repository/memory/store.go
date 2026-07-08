@@ -10,9 +10,10 @@ import (
 )
 
 type Store struct {
-	mu    sync.RWMutex
-	decks []core.Deck
-	cards []core.Card
+	mu      sync.RWMutex
+	decks   []core.Deck
+	cards   []core.Card
+	reviews []core.Review
 }
 
 func NewStore(decks []core.Deck, cards []core.Card) *Store {
@@ -20,6 +21,11 @@ func NewStore(decks []core.Deck, cards []core.Card) *Store {
 		decks: append([]core.Deck(nil), decks...),
 		cards: append([]core.Card(nil), cards...),
 	}
+}
+
+func NewSeededStore() *Store {
+	now := time.Now().UTC()
+	return NewStore([]core.Deck{core.SeedDeck(now)}, core.SeedCards(now))
 }
 
 func (store *Store) ListDecks(ctx context.Context) ([]core.Deck, error) {
@@ -75,4 +81,12 @@ func (store *Store) UpdateCard(ctx context.Context, card core.Card) error {
 	}
 
 	return repository.ErrNotFound
+}
+
+func (store *Store) CreateReview(ctx context.Context, review core.Review) error {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
+	store.reviews = append(store.reviews, review)
+	return nil
 }
