@@ -2,6 +2,5 @@ go 1.22
 
 use (
 	./apps/backend
-	./apps/tui
 	./packages/core
 )
