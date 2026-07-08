@@ -118,11 +118,11 @@ button {
   color: #c5d6cf;
 }
 
-#apiStatus[data-online="true"] {
+.side-panel strong[data-online="true"] {
   color: #8ee0b7;
 }
 
-#apiStatus[data-online="false"] {
+.side-panel strong[data-online="false"] {
   color: #f3d083;
 }
 
@@ -265,13 +265,20 @@ button {
   gap: 10px;
 }
 
-.queue-card {
+.queue-card,
+.queue-empty {
   background: #f4f1e9;
   color: #1f2428;
   display: grid;
   gap: 4px;
   padding: 12px;
   text-align: left;
+}
+
+.queue-empty {
+  border-radius: 8px;
+  color: #53615b;
+  font-size: 14px;
 }
 
 .queue-card.active span,
