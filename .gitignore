@@ -1,0 +1,33 @@
+# Binaries
+*.exe
+*.test
+*.out
+
+# Go
+bin/
+coverage.out
+
+# Node/frontend
+node_modules/
+dist/
+.vite/
+
+# Local data
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment
+.env
+.env.local
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+.DS_Store
