@@ -14,7 +14,7 @@ dist/
 .vite/
 
 # Local data
-data/
+/data/
 *.db
 *.sqlite
 *.sqlite3
