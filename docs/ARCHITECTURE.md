@@ -4,7 +4,7 @@
 
 Le projet est decoupe en trois surfaces:
 
-- `backend`: API HTTP et orchestration des donnees.
+- `backend`: API Gin racine pour le rendu, et ancienne API experimentale dans `apps/backend`.
 - `frontend`: experience web confortable pour gerer les contenus.
 - `tui`: experience terminal rapide pour reviser sans ouvrir le navigateur.
 
@@ -35,4 +35,6 @@ Les notes possibles:
 
 Le backend est la source de verite des decks, cartes et reviews. Le front ne garde pas de donnees metier en dur: il consomme l'API.
 
-La stack locale cible PostgreSQL via Docker Compose. Un repository memoire reste disponible si `DATABASE_URL` est absent, principalement pour demarrer l'API sans dependance externe.
+La cible du rendu API est SQLite pour que `go run .` fonctionne directement depuis la racine du projet, y compris dans un GitHub Codespace.
+
+Le repository SQLite persiste les decks, cartes et reviews dans `data/korean-learning.db` par defaut.

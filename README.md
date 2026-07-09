@@ -2,7 +2,7 @@
 
 Application personnelle pour apprendre le coreen avec trois interfaces:
 
-- un backend HTTP en Go;
+- une API REST en Go avec Gin et SQLite;
 - une interface web pour gerer les decks, les cartes et les sessions;
 - un TUI/CLI pour reviser vite depuis le terminal.
 
@@ -20,10 +20,11 @@ Le projet vise un usage quotidien, proche d'Anki pour la revision espacee, avec 
 ## Structure
 
 ```txt
+internal/    API Gin, services et repository SQLite
 apps/
-  backend/   API HTTP
+  backend/   ancienne API experimentale
   tui/       interface terminal
-frontend/   interface web statique initiale
+frontend/   interface web React
 packages/
   core/      domaine partage: decks, cartes, reviews, scheduling
 docs/
@@ -33,8 +34,8 @@ docs/
 ## Commandes prevues
 
 ```powershell
-go test ./apps/backend/... ./packages/core
-go run ./apps/backend
+go test ./...
+go run .
 go run ./apps/tui -- today
 go run ./apps/tui -- review
 ```
@@ -49,11 +50,17 @@ corepack pnpm dev
 
 ## Lancement avec Docker
 
-La stack Docker lance:
+La stack Docker historique lance encore:
 
 - PostgreSQL;
 - le backend Go sur `http://localhost:8080`;
 - le frontend React/Nginx sur `http://localhost:5173`.
+
+Le chemin attendu pour le rendu API est pour l'instant le lancement local SQLite:
+
+```powershell
+go run .
+```
 
 ```powershell
 docker compose up --build
@@ -65,17 +72,14 @@ Variables utiles:
 
 ```txt
 HTTP_ADDR=:8080
-DATABASE_URL=postgres://korean:korean@localhost:5432/korean_learning?sslmode=disable
-DB_AUTO_MIGRATE=true
+SQLITE_PATH=data/korean-learning.db
 DB_SEED=true
 VITE_API_BASE_URL=http://localhost:8080/api
 ```
 
-En local sans Docker, il faut demarrer PostgreSQL puis lancer:
+En local:
 
 ```powershell
-cd apps/backend
-$env:DATABASE_URL="postgres://korean:korean@localhost:5432/korean_learning?sslmode=disable"
 go run .
 ```
 
