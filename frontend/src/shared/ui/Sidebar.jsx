@@ -1,6 +1,6 @@
 const navItems = ["Dashboard", "Revision", "Decks", "Cartes", "Stats"];
 
-export function Sidebar({ apiOnline }) {
+export function Sidebar({ apiOnline, currentUser, onLogout }) {
   return (
     <aside className="sidebar" aria-label="Navigation principale">
       <div className="brand">
@@ -22,6 +22,15 @@ export function Sidebar({ apiOnline }) {
       <section className="side-panel">
         <span>API</span>
         <strong data-online={String(apiOnline)}>{apiOnline ? "Connectee" : "Mode demo"}</strong>
+      </section>
+
+      <section className="side-panel user-panel">
+        <span>Compte</span>
+        <strong>{currentUser?.name ?? "Utilisateur"}</strong>
+        <small>{currentUser?.email}</small>
+        <button type="button" onClick={onLogout}>
+          Deconnexion
+        </button>
       </section>
     </aside>
   );

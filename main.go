@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 
 	"github.com/arthurblanchet59/korean-learning-go/internal/api"
@@ -12,6 +13,7 @@ import (
 
 func main() {
 	cfg := config.Load()
+	ctx := context.Background()
 
 	store, err := sqliterepo.Open(cfg.SQLitePath)
 	if err != nil {
@@ -30,7 +32,17 @@ func main() {
 	}
 
 	studyService := service.NewStudyService(store, store, store, core.NewScheduler())
-	router := api.NewRouter(studyService)
+	authService := service.NewAuthService(store, cfg.JWTSecret)
+	if err := authService.EnsureAdmin(
+		ctx,
+		cfg.AdminName,
+		cfg.AdminEmail,
+		cfg.AdminPassword,
+	); err != nil {
+		log.Fatalf("seed admin user: %v", err)
+	}
+
+	router := api.NewRouter(studyService, authService)
 
 	log.Printf("korean-learning API listening on http://localhost%s", cfg.HTTPAddr)
 	if err := router.Run(cfg.HTTPAddr); err != nil {

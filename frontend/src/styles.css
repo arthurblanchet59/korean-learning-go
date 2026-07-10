@@ -24,6 +24,16 @@ button {
   cursor: pointer;
 }
 
+input {
+  border: 1px solid #d8d1c3;
+  border-radius: 8px;
+  color: #1f2428;
+  font: inherit;
+  min-height: 44px;
+  padding: 10px 12px;
+  width: 100%;
+}
+
 .shell {
   display: grid;
   grid-template-columns: 276px 1fr;
@@ -101,6 +111,20 @@ button {
   gap: 6px;
   margin-top: auto;
   padding: 16px;
+}
+
+.user-panel small {
+  color: #c5d6cf;
+  overflow-wrap: anywhere;
+}
+
+.user-panel button {
+  background: #f4f1e9;
+  border: 0;
+  border-radius: 8px;
+  color: #18332f;
+  font-weight: 800;
+  min-height: 38px;
 }
 
 .side-panel span,
@@ -291,6 +315,92 @@ button {
   display: grid;
   gap: 4px;
   padding-top: 12px;
+}
+
+.auth-shell {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.auth-panel {
+  background: #ffffff;
+  border: 1px solid #ded8ca;
+  border-radius: 8px;
+  display: grid;
+  gap: 22px;
+  max-width: 460px;
+  padding: 28px;
+  width: 100%;
+}
+
+.auth-panel h1 {
+  font-size: 32px;
+  letter-spacing: 0;
+  margin: 0;
+}
+
+.auth-copy {
+  color: #53615b;
+  margin: 10px 0 0;
+}
+
+.auth-tabs {
+  background: #f4f1e9;
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 6px;
+}
+
+.auth-tabs button {
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: #53615b;
+  font-weight: 800;
+  min-height: 40px;
+}
+
+.auth-tabs button.active {
+  background: #18332f;
+  color: #ffffff;
+}
+
+.auth-form,
+.profile-form {
+  display: grid;
+  gap: 14px;
+}
+
+.auth-form label,
+.profile-form label {
+  color: #53615b;
+  display: grid;
+  font-size: 13px;
+  font-weight: 800;
+  gap: 6px;
+}
+
+.form-error {
+  background: #ffe8df;
+  border-radius: 8px;
+  color: #a73620;
+  font-weight: 800;
+  margin: 0;
+  padding: 10px 12px;
+}
+
+.form-success {
+  background: #e0f4e9;
+  border-radius: 8px;
+  color: #1f6f48;
+  font-weight: 800;
+  margin: 0;
+  padding: 10px 12px;
 }
 
 @media (max-width: 940px) {

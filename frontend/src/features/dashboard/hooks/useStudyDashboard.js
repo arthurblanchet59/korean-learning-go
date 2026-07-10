@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { answerReviewCard, fetchDecks, fetchDueCards, fetchStats } from "../../../shared/api/studyApi.js";
 import { fallbackCards, fallbackDecks, fallbackStats } from "../../../shared/data/fallbackStudyData.js";
 
-export function useStudyDashboard() {
+export function useStudyDashboard(authToken) {
   const [cards, setCards] = useState([]);
   const [decks, setDecks] = useState([]);
   const [stats, setStats] = useState(fallbackStats);
@@ -15,9 +15,9 @@ export function useStudyDashboard() {
     setIsLoading(true);
 
     const [statsResult, cardsResult, decksResult] = await Promise.all([
-      fetchStats(),
-      fetchDueCards(),
-      fetchDecks()
+      fetchStats(authToken),
+      fetchDueCards(authToken),
+      fetchDecks(authToken)
     ]);
 
     setAPIOnline(statsResult.fromAPI || cardsResult.fromAPI || decksResult.fromAPI);
@@ -26,7 +26,7 @@ export function useStudyDashboard() {
     setDecks(decksResult.data ?? fallbackDecks);
     setActiveIndex(0);
     setIsLoading(false);
-  }, []);
+  }, [authToken]);
 
   useEffect(() => {
     loadDashboard();
@@ -35,9 +35,9 @@ export function useStudyDashboard() {
   const activeCard = useMemo(() => cards[activeIndex], [cards, activeIndex]);
 
   const refreshStats = useCallback(async () => {
-    const result = await fetchStats();
+    const result = await fetchStats(authToken);
     setStats(result.data ?? fallbackStats);
-  }, []);
+  }, [authToken]);
 
   const answerCard = useCallback(
     async (rating) => {
@@ -51,7 +51,7 @@ export function useStudyDashboard() {
         return;
       }
 
-      const result = await answerReviewCard(card.id, rating);
+      const result = await answerReviewCard(card.id, rating, authToken);
       if (!result.ok) {
         return;
       }
@@ -63,7 +63,7 @@ export function useStudyDashboard() {
       });
       await refreshStats();
     },
-    [activeIndex, apiOnline, cards, refreshStats]
+    [activeIndex, apiOnline, authToken, cards, refreshStats]
   );
 
   const selectCard = useCallback((index) => {

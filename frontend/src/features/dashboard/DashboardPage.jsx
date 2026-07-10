@@ -1,11 +1,12 @@
 import { DeckList } from "../decks/DeckList.jsx";
 import { ReviewPanel } from "../review/ReviewPanel.jsx";
 import { ReviewQueue } from "../review/ReviewQueue.jsx";
+import { ProfilePanel } from "../auth/ProfilePanel.jsx";
 import { MetricCard } from "./components/MetricCard.jsx";
 import { useStudyDashboard } from "./hooks/useStudyDashboard.js";
 import { Sidebar } from "../../shared/ui/Sidebar.jsx";
 
-export function DashboardPage() {
+export function DashboardPage({ authToken, currentUser, onLogout, onUpdateProfile }) {
   const {
     apiOnline,
     cards,
@@ -17,11 +18,11 @@ export function DashboardPage() {
     answerCard,
     selectCard,
     restartSession
-  } = useStudyDashboard();
+  } = useStudyDashboard(authToken);
 
   return (
     <main className="shell">
-      <Sidebar apiOnline={apiOnline} />
+      <Sidebar apiOnline={apiOnline} currentUser={currentUser} onLogout={onLogout} />
 
       <section className="workspace">
         <header className="topbar">
@@ -52,6 +53,7 @@ export function DashboardPage() {
         </section>
 
         <DeckList decks={decks} />
+        <ProfilePanel currentUser={currentUser} onUpdateProfile={onUpdateProfile} />
       </section>
     </main>
   );
