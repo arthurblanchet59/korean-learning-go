@@ -33,6 +33,7 @@ func main() {
 
 	studyService := service.NewStudyService(store, store, store, core.NewScheduler())
 	authService := service.NewAuthService(store, cfg.JWTSecret)
+	adminService := service.NewAdminService(store)
 	if err := authService.EnsureAdmin(
 		ctx,
 		cfg.AdminName,
@@ -42,7 +43,7 @@ func main() {
 		log.Fatalf("seed admin user: %v", err)
 	}
 
-	router := api.NewRouter(studyService, authService)
+	router := api.NewRouter(studyService, authService, adminService)
 
 	log.Printf("korean-learning API listening on http://localhost%s", cfg.HTTPAddr)
 	if err := router.Run(cfg.HTTPAddr); err != nil {

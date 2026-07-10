@@ -37,6 +37,17 @@ type ReviewRepository interface {
 	CreateReview(ctx context.Context, review core.Review) error
 }
 
+type ResetResult struct {
+	DeletedReviews int `json:"deletedReviews"`
+	DeletedCards   int `json:"deletedCards"`
+	DeletedDecks   int `json:"deletedDecks"`
+	DeletedUsers   int `json:"deletedUsers"`
+}
+
+type AdminRepository interface {
+	Reset(ctx context.Context) (ResetResult, error)
+}
+
 type UserRepository interface {
 	CreateUser(ctx context.Context, user domain.User) error
 	FindUserByID(ctx context.Context, id string) (domain.User, error)

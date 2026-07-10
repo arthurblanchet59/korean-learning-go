@@ -498,6 +498,36 @@ func (store *Store) CreateReview(ctx context.Context, review core.Review) error 
 	return err
 }
 
+func (store *Store) Reset(ctx context.Context) (repository.ResetResult, error) {
+	tx, err := store.db.BeginTx(ctx, nil)
+	if err != nil {
+		return repository.ResetResult{}, err
+	}
+	defer rollback(tx)
+
+	result := repository.ResetResult{}
+	var resetErr error
+
+	if result.DeletedReviews, resetErr = execDelete(ctx, tx, `DELETE FROM reviews`); resetErr != nil {
+		return repository.ResetResult{}, resetErr
+	}
+	if result.DeletedCards, resetErr = execDelete(ctx, tx, `DELETE FROM cards`); resetErr != nil {
+		return repository.ResetResult{}, resetErr
+	}
+	if result.DeletedDecks, resetErr = execDelete(ctx, tx, `DELETE FROM decks`); resetErr != nil {
+		return repository.ResetResult{}, resetErr
+	}
+	if result.DeletedUsers, resetErr = execDelete(ctx, tx, `DELETE FROM users WHERE is_admin = 0`); resetErr != nil {
+		return repository.ResetResult{}, resetErr
+	}
+
+	if err := tx.Commit(); err != nil {
+		return repository.ResetResult{}, err
+	}
+
+	return result, nil
+}
+
 func insertCard(tx *sql.Tx, card core.Card) error {
 	tagsJSON, err := json.Marshal(card.Tags)
 	if err != nil {
@@ -669,6 +699,16 @@ func nullableTime(value time.Time) any {
 
 func rollback(tx *sql.Tx) {
 	_ = tx.Rollback()
+}
+
+func execDelete(ctx context.Context, tx *sql.Tx, query string, args ...any) (int, error) {
+	result, err := tx.ExecContext(ctx, query, args...)
+	if err != nil {
+		return 0, err
+	}
+
+	affected, err := result.RowsAffected()
+	return int(affected), err
 }
 
 func boolInt(value bool) int {

@@ -15,6 +15,7 @@ import (
 type Handler struct {
 	study *service.StudyService
 	auth  *service.AuthService
+	admin *service.AdminService
 }
 
 type answerRequest struct {
@@ -84,8 +85,8 @@ type updateUserRequest struct {
 	Password string `json:"password" binding:"omitempty,min=8,max=120"`
 }
 
-func NewRouter(study *service.StudyService, auth *service.AuthService) *gin.Engine {
-	handler := &Handler{study: study, auth: auth}
+func NewRouter(study *service.StudyService, auth *service.AuthService, adminService *service.AdminService) *gin.Engine {
+	handler := &Handler{study: study, auth: auth, admin: adminService}
 
 	router := gin.New()
 	router.Use(gin.Logger(), gin.Recovery(), cors())
@@ -102,9 +103,13 @@ func NewRouter(study *service.StudyService, auth *service.AuthService) *gin.Engi
 	admin := router.Group("/admin")
 	admin.Use(handler.authMiddleware(), requireAdmin())
 	admin.PUT("/users/:id", handler.adminUpdateUser)
+	admin.POST("/reset", handler.resetDatabase)
+	admin.DELETE("/reset", handler.resetDatabase)
 
 	api := router.Group("/api")
 	api.Use(handler.authMiddleware())
+	api.POST("/reset", requireAdmin(), handler.resetDatabase)
+	api.DELETE("/reset", requireAdmin(), handler.resetDatabase)
 	api.GET("/decks", handler.listDecks)
 	api.GET("/decks/search", handler.searchDecks)
 	api.POST("/decks", handler.createDeck)
@@ -231,6 +236,19 @@ func (handler *Handler) adminUpdateUser(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, user)
+}
+
+func (handler *Handler) resetDatabase(ctx *gin.Context) {
+	result, err := handler.admin.ResetDatabase(ctx.Request.Context())
+	if err != nil {
+		writeError(ctx, http.StatusInternalServerError, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"message": "database reset completed",
+		"result":  result,
+	})
 }
 
 func (handler *Handler) listDecks(ctx *gin.Context) {
