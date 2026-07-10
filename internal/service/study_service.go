@@ -52,6 +52,11 @@ type CardPatchInput struct {
 	Tags               *[]string
 }
 
+type SearchResult struct {
+	Decks []core.Deck `json:"decks"`
+	Cards []core.Card `json:"cards"`
+}
+
 func NewStudyService(decks repository.DeckRepository, cards repository.CardRepository, reviews repository.ReviewRepository, scheduler core.Scheduler) *StudyService {
 	return &StudyService{
 		decks:     decks,
@@ -68,6 +73,20 @@ func (service *StudyService) ListDecks(ctx context.Context) ([]core.Deck, error)
 
 func (service *StudyService) SearchDecks(ctx context.Context, query string) ([]core.Deck, error) {
 	return service.decks.SearchDecks(ctx, strings.TrimSpace(query))
+}
+
+func (service *StudyService) SearchAll(ctx context.Context, query string) (SearchResult, error) {
+	decks, err := service.SearchDecks(ctx, query)
+	if err != nil {
+		return SearchResult{}, err
+	}
+
+	cards, err := service.SearchCards(ctx, query)
+	if err != nil {
+		return SearchResult{}, err
+	}
+
+	return SearchResult{Decks: decks, Cards: cards}, nil
 }
 
 func (service *StudyService) DeckByID(ctx context.Context, id string) (core.Deck, error) {
@@ -260,6 +279,22 @@ func (service *StudyService) DeleteCards(ctx context.Context, ids []string) (int
 
 func (service *StudyService) DueCards(ctx context.Context) ([]core.Card, error) {
 	return service.cards.ListDueCards(ctx, service.now())
+}
+
+func (service *StudyService) DifficultCards(ctx context.Context) ([]core.Card, error) {
+	cards, err := service.cards.ListCards(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	difficult := make([]core.Card, 0)
+	for _, card := range cards {
+		if card.ReviewState.LapseCount >= 2 {
+			difficult = append(difficult, card)
+		}
+	}
+
+	return difficult, nil
 }
 
 func (service *StudyService) Stats(ctx context.Context) (core.StudyStats, error) {

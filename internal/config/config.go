@@ -8,6 +8,7 @@ import (
 type Config struct {
 	HTTPAddr      string
 	SQLitePath    string
+	LogDir        string
 	SeedDatabase  bool
 	JWTSecret     string
 	AdminName     string
@@ -19,6 +20,7 @@ func Load() Config {
 	return Config{
 		HTTPAddr:      envOrDefault("HTTP_ADDR", ":8080"),
 		SQLitePath:    envOrDefault("SQLITE_PATH", "data/korean-learning.db"),
+		LogDir:        envOrDefault("LOG_DIR", "logs"),
 		SeedDatabase:  envBool("DB_SEED", true),
 		JWTSecret:     envOrDefault("JWT_SECRET", "dev-secret-change-me"),
 		AdminName:     envOrDefault("ADMIN_NAME", "Admin"),

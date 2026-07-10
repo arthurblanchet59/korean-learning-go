@@ -1,0 +1,213 @@
+@baseUrl = http://localhost:8080
+@adminEmail = admin@korean.local
+@adminPassword = admin123
+@token = replace-with-jwt
+@deckId = deck-basic-korean
+@cardId = card-hello
+
+### Health
+GET {{baseUrl}}/health
+
+### Swagger OpenAPI JSON
+GET {{baseUrl}}/openapi.json
+
+### Register user
+# @name register
+POST {{baseUrl}}/user/register
+Content-Type: application/json
+
+{
+  "name": "Arthur",
+  "email": "arthur@example.com",
+  "password": "password123"
+}
+
+### Login admin
+# @name login
+POST {{baseUrl}}/user/login
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+### Current user
+GET {{baseUrl}}/user/me
+Authorization: Bearer {{token}}
+
+### Update current user
+PUT {{baseUrl}}/user/me
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Arthur Korean Learner"
+}
+
+### List decks
+GET {{baseUrl}}/api/decks
+Authorization: Bearer {{token}}
+
+### Search decks
+GET {{baseUrl}}/api/decks/search?query=coreen
+Authorization: Bearer {{token}}
+
+### Create deck
+# @name createDeck
+POST {{baseUrl}}/api/decks
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Voyage en Coree",
+  "description": "Expressions utiles pour voyager."
+}
+
+### Get deck by ID
+GET {{baseUrl}}/api/decks/{{deckId}}
+Authorization: Bearer {{token}}
+
+### Update deck by ID
+PUT {{baseUrl}}/api/decks/{{deckId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "description": "Premiers mots, phrases et sons utiles."
+}
+
+### Bulk update decks
+PUT {{baseUrl}}/api/decks/bulk
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "ids": ["{{deckId}}"],
+  "patch": {
+    "description": "Deck mis a jour en bulk."
+  }
+}
+
+### Bulk delete decks
+DELETE {{baseUrl}}/api/decks/bulk
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "ids": ["deck-id-to-delete"]
+}
+
+### List cards
+GET {{baseUrl}}/api/cards
+Authorization: Bearer {{token}}
+
+### Search cards
+GET {{baseUrl}}/api/cards/search?query=eau
+Authorization: Bearer {{token}}
+
+### Create card
+# @name createCard
+POST {{baseUrl}}/api/cards
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "deckId": "{{deckId}}",
+  "kind": "vocabulary",
+  "korean": "감사합니다",
+  "translation": "merci",
+  "romanization": "gamsahamnida",
+  "exampleKorean": "정말 감사합니다.",
+  "exampleTranslation": "Merci beaucoup.",
+  "tags": ["politesse", "base"]
+}
+
+### Get card by ID
+GET {{baseUrl}}/api/cards/{{cardId}}
+Authorization: Bearer {{token}}
+
+### Update card by ID
+PUT {{baseUrl}}/api/cards/{{cardId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "tags": ["salutation", "politesse", "debutant"]
+}
+
+### Bulk update cards
+PUT {{baseUrl}}/api/cards/bulk
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "ids": ["{{cardId}}"],
+  "patch": {
+    "romanization": "annyeonghaseyo"
+  }
+}
+
+### Bulk delete cards
+DELETE {{baseUrl}}/api/cards/bulk
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "ids": ["card-id-to-delete"]
+}
+
+### Global search alias expected by subject
+GET {{baseUrl}}/search?query=bonjour
+Authorization: Bearer {{token}}
+
+### Global API search
+GET {{baseUrl}}/api/search?query=bonjour
+Authorization: Bearer {{token}}
+
+### Study today alias
+GET {{baseUrl}}/study/today
+Authorization: Bearer {{token}}
+
+### Due review cards
+GET {{baseUrl}}/api/reviews/due
+Authorization: Bearer {{token}}
+
+### Answer card alias
+POST {{baseUrl}}/study/cards/{{cardId}}/answer
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "rating": "good"
+}
+
+### Answer card original API route
+POST {{baseUrl}}/api/reviews/{{cardId}}/answer
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "rating": "hard"
+}
+
+### Stats
+GET {{baseUrl}}/api/stats
+Authorization: Bearer {{token}}
+
+### Difficult cards
+GET {{baseUrl}}/api/cards/difficult
+Authorization: Bearer {{token}}
+
+### Admin update non-admin user
+PUT {{baseUrl}}/admin/users/user-id-to-update
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Updated Student"
+}
+
+### Reset database, admin only
+POST {{baseUrl}}/api/reset
+Authorization: Bearer {{token}}

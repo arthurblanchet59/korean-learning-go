@@ -85,15 +85,22 @@ type updateUserRequest struct {
 	Password string `json:"password" binding:"omitempty,min=8,max=120"`
 }
 
-func NewRouter(study *service.StudyService, auth *service.AuthService, adminService *service.AdminService) *gin.Engine {
+func NewRouter(study *service.StudyService, auth *service.AuthService, adminService *service.AdminService, middlewares ...gin.HandlerFunc) *gin.Engine {
 	handler := &Handler{study: study, auth: auth, admin: adminService}
 
 	router := gin.New()
-	router.Use(gin.Logger(), gin.Recovery(), cors())
+	if len(middlewares) > 0 {
+		router.Use(middlewares...)
+	} else {
+		router.Use(gin.Logger(), gin.Recovery())
+	}
+	router.Use(cors())
 
 	router.GET("/health", handler.health)
+	registerSwaggerRoutes(router)
 	router.POST("/user/register", handler.register)
 	router.POST("/user/login", handler.login)
+	router.GET("/search", handler.authMiddleware(), handler.searchAll)
 
 	user := router.Group("/user")
 	user.Use(handler.authMiddleware())
@@ -110,6 +117,7 @@ func NewRouter(study *service.StudyService, auth *service.AuthService, adminServ
 	api.Use(handler.authMiddleware())
 	api.POST("/reset", requireAdmin(), handler.resetDatabase)
 	api.DELETE("/reset", requireAdmin(), handler.resetDatabase)
+	api.GET("/search", handler.searchAll)
 	api.GET("/decks", handler.listDecks)
 	api.GET("/decks/search", handler.searchDecks)
 	api.POST("/decks", handler.createDeck)
@@ -123,12 +131,18 @@ func NewRouter(study *service.StudyService, auth *service.AuthService, adminServ
 	api.POST("/cards", handler.createCard)
 	api.PUT("/cards/bulk", handler.updateCards)
 	api.DELETE("/cards/bulk", handler.deleteCards)
+	api.GET("/cards/difficult", handler.listDifficultCards)
 	api.GET("/cards/:id", handler.getCard)
 	api.PUT("/cards/:id", handler.updateCard)
 	api.DELETE("/cards/:id", handler.deleteCard)
 	api.GET("/reviews/due", handler.listDueCards)
 	api.POST("/reviews/:id/answer", handler.answerCard)
 	api.GET("/stats", handler.stats)
+
+	studyRoutes := router.Group("/study")
+	studyRoutes.Use(handler.authMiddleware())
+	studyRoutes.GET("/today", handler.listDueCards)
+	studyRoutes.POST("/cards/:id/answer", handler.answerCard)
 
 	return router
 }
@@ -263,6 +277,16 @@ func (handler *Handler) listDecks(ctx *gin.Context) {
 
 func (handler *Handler) searchDecks(ctx *gin.Context) {
 	results, err := handler.study.SearchDecks(ctx.Request.Context(), ctx.Query("query"))
+	if err != nil {
+		writeError(ctx, http.StatusInternalServerError, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, results)
+}
+
+func (handler *Handler) searchAll(ctx *gin.Context) {
+	results, err := handler.study.SearchAll(ctx.Request.Context(), ctx.Query("query"))
 	if err != nil {
 		writeError(ctx, http.StatusInternalServerError, err)
 		return
@@ -462,6 +486,16 @@ func (handler *Handler) deleteCards(ctx *gin.Context) {
 
 func (handler *Handler) listDueCards(ctx *gin.Context) {
 	cards, err := handler.study.DueCards(ctx.Request.Context())
+	if err != nil {
+		writeError(ctx, http.StatusInternalServerError, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, cards)
+}
+
+func (handler *Handler) listDifficultCards(ctx *gin.Context) {
+	cards, err := handler.study.DifficultCards(ctx.Request.Context())
 	if err != nil {
 		writeError(ctx, http.StatusInternalServerError, err)
 		return

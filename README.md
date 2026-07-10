@@ -29,6 +29,7 @@ packages/
   core/      domaine partage: decks, cartes, reviews, scheduling
 docs/
   ARCHITECTURE.md
+  openapi.json
 ```
 
 ## Commandes prevues
@@ -39,6 +40,15 @@ go run .
 go run ./apps/tui -- today
 go run ./apps/tui -- review
 ```
+
+Une fois le backend lance avec `go run .`:
+
+- API: `http://localhost:8080`
+- Swagger UI: `http://localhost:8080/swagger/index.html`
+- OpenAPI JSON: `http://localhost:8080/openapi.json`
+- Exemples de requetes: `requests.http`
+- Logs normaux: `logs/app.log`
+- Logs erreurs: `logs/error.log`
 
 Pour le front:
 
@@ -72,6 +82,7 @@ Variables utiles:
 ```txt
 HTTP_ADDR=:8080
 SQLITE_PATH=data/korean-learning.db
+LOG_DIR=logs
 DB_SEED=true
 JWT_SECRET=dev-secret-change-me
 ADMIN_EMAIL=admin@korean.local
