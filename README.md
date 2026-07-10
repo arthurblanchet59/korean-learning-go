@@ -50,10 +50,9 @@ corepack pnpm dev
 
 ## Lancement avec Docker
 
-La stack Docker historique lance encore:
+La stack Docker lance:
 
-- PostgreSQL;
-- le backend Go sur `http://localhost:8080`;
+- le backend Gin/SQLite sur `http://localhost:8080`;
 - le frontend React/Nginx sur `http://localhost:5173`.
 
 Le chemin attendu pour le rendu API est pour l'instant le lancement local SQLite:
@@ -74,6 +73,9 @@ Variables utiles:
 HTTP_ADDR=:8080
 SQLITE_PATH=data/korean-learning.db
 DB_SEED=true
+JWT_SECRET=dev-secret-change-me
+ADMIN_EMAIL=admin@korean.local
+ADMIN_PASSWORD=admin123
 VITE_API_BASE_URL=http://localhost:8080/api
 ```
 
