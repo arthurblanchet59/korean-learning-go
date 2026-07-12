@@ -11,11 +11,13 @@ RUN go build -o /out/korean-learning-api .
 
 FROM alpine:3.20
 
-RUN adduser -D -H appuser
-USER appuser
-
 WORKDIR /app
 COPY --from=build /out/korean-learning-api ./korean-learning-api
+COPY docs ./docs
+RUN adduser -D -H appuser \
+    && mkdir -p /app/data /app/logs \
+    && chown -R appuser:appuser /app
+USER appuser
 
 EXPOSE 8080
 

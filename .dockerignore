@@ -1,9 +1,11 @@
 .git
 .gocache
+.gomodcache
 node_modules
 frontend/node_modules
 frontend/dist
 data
+logs
 *.db
 *.sqlite
 *.sqlite3
