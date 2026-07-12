@@ -1,60 +1,56 @@
 # Korean Learning Go
 
-Application personnelle pour apprendre le coreen avec trois interfaces:
+Application complète d’apprentissage du coréen, construite autour d’une API REST Go/Gin et d’une base SQLite. Elle propose deux clients complémentaires : une interface web React et un TUI plein écran pour le terminal.
 
-- une API REST en Go avec Gin et SQLite;
-- une interface web pour gerer les decks, les cartes et les sessions;
-- un TUI/CLI pour reviser vite depuis le terminal.
+## Fonctionnalités
 
-Le projet vise un usage quotidien, proche d'Anki pour la revision espacee, avec un parcours guide pour le hangeul, le vocabulaire et les phrases utiles.
+- comptes utilisateurs avec authentification JWT et rôle administrateur ;
+- decks et cartes de vocabulaire isolés par utilisateur ;
+- révision espacée avec les notes `again`, `hard`, `good` et `easy` ;
+- sessions quotidiennes, cartes difficiles, statistiques et séries de révision ;
+- leçons guidées de coréen avec suivi de progression ;
+- journal en coréen avec suggestions de correction locales et expliquées ;
+- recherche globale et import/export CSV ;
+- documentation OpenAPI, Swagger UI et exemples de requêtes HTTP ;
+- clients React et TUI utilisant la même API.
 
-## Objectifs MVP
+## Prérequis
 
-- Creer et organiser des decks de vocabulaire.
-- Ajouter des cartes avec mot coreen, traduction, romanisation, exemples et tags.
-- Reviser les cartes dues avec une notation `again`, `hard`, `good`, `easy`.
-- Calculer la prochaine revision via un algorithme simple de repetition espacee.
-- Exposer une API REST pour le front et le TUI.
-- Fournir un TUI rapide pour les revisions quotidiennes.
-- Isoler les decks, cartes, revisions et statistiques de chaque utilisateur.
-- Proposer des lecons guidees et suivre leur progression.
-- Ecrire un journal en coreen avec des corrections automatiques expliquees.
-- Importer et exporter les cartes au format CSV.
+- [Go 1.22 ou supérieur](https://go.dev/dl/) ;
+- Node.js 22 et Corepack pour le frontend ;
+- Docker Desktop uniquement pour le lancement avec Docker.
 
-## Structure
+## Démarrage rapide
 
-```txt
-internal/    API Gin, services et repository SQLite
-apps/
-  backend/   ancienne API experimentale
-  tui/       interface terminal
-frontend/   interface web React
-packages/
-  core/      domaine partage: decks, cartes, reviews, scheduling
-docs/
-  ARCHITECTURE.md
-  AZURE_APP_SERVICE.md
-  openapi.json
-```
+### 1. Backend
 
-## Commandes prevues
+Depuis la racine du dépôt :
 
 ```powershell
-go test ./...
 go run .
-go run ./apps/tui
 ```
 
-Une fois le backend lance avec `go run .`:
+Le serveur initialise automatiquement SQLite, le compte administrateur et le contenu pédagogique. Il écoute par défaut sur `http://localhost:8080`.
 
-- API: `http://localhost:8080`
-- Swagger UI: `http://localhost:8080/swagger/index.html`
-- OpenAPI JSON: `http://localhost:8080/openapi.json`
-- Exemples de requetes: `requests.http`
-- Logs normaux: `logs/app.log`
-- Logs erreurs: `logs/error.log`
+Points d’entrée utiles :
 
-Pour le front:
+- santé : `http://localhost:8080/health` ;
+- Swagger UI : `http://localhost:8080/swagger/index.html` ;
+- OpenAPI JSON : `http://localhost:8080/openapi.json` ;
+- exemples de requêtes : [`requests.http`](requests.http).
+
+Les identifiants administrateur par défaut sont réservés au développement local :
+
+```text
+admin@korean.local
+admin123
+```
+
+Utilisez `POST /user/register` ou l’écran d’inscription pour créer un compte personnel. En production, remplacez impérativement `JWT_SECRET`, `ADMIN_EMAIL` et `ADMIN_PASSWORD`.
+
+### 2. Frontend React
+
+Dans un deuxième terminal :
 
 ```powershell
 cd frontend
@@ -62,60 +58,146 @@ corepack pnpm install
 corepack pnpm dev
 ```
 
-## Lancement avec Docker
+Ouvrez ensuite `http://localhost:5173`. Le frontend contacte par défaut l’API locale sur `http://localhost:8080/api`.
 
-La stack Docker lance:
+### 3. TUI
 
-- le backend Gin/SQLite sur `http://localhost:8080`;
-- le frontend React/Nginx sur `http://localhost:5173`.
-
-Le chemin attendu pour le rendu API est pour l'instant le lancement local SQLite:
-
-```powershell
-go run .
-```
-
-```powershell
-docker compose up --build
-```
-
-Docker Desktop doit etre demarre avant d'executer cette commande.
-
-## Deploiement Azure App Service
-
-Le deploiement Azure utilise un conteneur unique qui sert le frontend React, l'API Gin et la base SQLite persistante sous `/home`. La configuration complete de l'App Service, de GitHub Actions et des secrets est decrite dans [`docs/AZURE_APP_SERVICE.md`](docs/AZURE_APP_SERVICE.md).
-
-Variables utiles:
-
-```txt
-HTTP_ADDR=:8080
-SQLITE_PATH=data/korean-learning.db
-LOG_DIR=logs
-DB_SEED=true
-JWT_SECRET=dev-secret-change-me
-ADMIN_EMAIL=admin@korean.local
-ADMIN_PASSWORD=admin123
-VITE_API_BASE_URL=http://localhost:8080/api
-```
-
-En local:
-
-```powershell
-go run .
-```
-
-Dans un second terminal, le TUI plein ecran se lance avec:
+Dans un autre terminal, depuis la racine :
 
 ```powershell
 go run ./apps/tui
 ```
 
-Le TUI utilise `KOREAN_API_URL` (par defaut `http://localhost:8080`) et conserve le JWT dans le dossier personnel. Raccourcis principaux: `h/l` pour les onglets, `j/k` pour naviguer, espace pour reveler une carte, `1` a `4` pour noter, `/` pour rechercher, `:` pour la palette de commandes et `?` pour l'aide.
+Au premier écran, connectez-vous ou utilisez `Ctrl+R` pour créer un compte. Le JWT est conservé dans `~/.korean-learning-go/token`.
 
-## Roadmap courte
+Raccourcis principaux :
 
-1. Base domaine + scheduler de revision.
-2. Backend avec stockage local.
-3. Enrichir les exercices de grammaire et la bibliotheque de lecons.
-4. Ajouter un vrai format d'import `.apkg` en complement du CSV.
-5. Ameliorer progressivement le correcteur local du journal.
+```text
+h/l ou ←/→   changer d’onglet
+j/k ou ↑/↓   naviguer
+a            saisir une réponse
+v            inverser coréen/français
+espace       révéler une carte
+1 à 4        noter une révision
+n            créer un élément
+d            supprimer l’élément actif
+/            rechercher
+:            ouvrir la palette de commandes
+?            afficher l’aide
+q            quitter
+```
+
+Pour connecter le TUI à une API distante :
+
+```powershell
+go run ./apps/tui --api "https://mon-app.azurewebsites.net"
+```
+
+La variable `KOREAN_API_URL` peut également définir cette adresse.
+
+## Lancement avec Docker
+
+Docker Compose lance le backend et le frontend dans deux conteneurs :
+
+```powershell
+docker compose up --build
+```
+
+- frontend : `http://localhost:5173` ;
+- backend : `http://localhost:8080` ;
+- données SQLite et logs : volumes Docker persistants.
+
+Pour arrêter la stack :
+
+```powershell
+docker compose down
+```
+
+## Configuration
+
+Les variables disponibles sont documentées dans [`.env.example`](.env.example). Les principales sont :
+
+| Variable | Valeur locale par défaut | Description |
+| --- | --- | --- |
+| `HTTP_ADDR` | `:8080` | Adresse d’écoute du backend |
+| `SQLITE_PATH` | `data/korean-learning.db` | Emplacement de la base SQLite |
+| `LOG_DIR` | `logs` | Répertoire des journaux applicatifs |
+| `DB_SEED` | `true` | Initialise le contenu pédagogique |
+| `JWT_SECRET` | valeur de développement | Clé de signature des JWT |
+| `ADMIN_NAME` | `Admin` | Nom du compte administrateur initial |
+| `ADMIN_EMAIL` | `admin@korean.local` | Adresse administrateur initiale |
+| `ADMIN_PASSWORD` | `admin123` | Mot de passe administrateur initial |
+| `VITE_API_BASE_URL` | `http://localhost:8080/api` | API utilisée par React au moment du build |
+
+Exemple PowerShell :
+
+```powershell
+$env:JWT_SECRET = "une-cle-longue-et-aleatoire"
+$env:ADMIN_PASSWORD = "un-mot-de-passe-fort"
+go run .
+```
+
+Le fichier `.env.example` sert de référence : l’application Go ne charge pas automatiquement un fichier `.env`.
+
+## Tests et qualité
+
+Backend, cœur métier et TUI :
+
+```powershell
+go test ./...
+go test ./packages/core
+go test ./apps/tui
+go vet ./...
+```
+
+Frontend :
+
+```powershell
+cd frontend
+corepack pnpm test
+corepack pnpm build
+```
+
+Les tests couvrent notamment l’authentification, le CRUD des decks, le reset administrateur, l’isolation des utilisateurs, les transactions SQLite, le scheduler et les comportements React sensibles.
+
+## Architecture
+
+```text
+internal/
+  api/                   routes et handlers Gin par domaine
+  service/               règles métier et orchestration
+  repository/sqlite/     persistance SQLite par domaine
+apps/
+  tui/                   client terminal Bubble Tea
+  backend/               ancien prototype PostgreSQL, hors application active
+frontend/                client React/Vite
+packages/core/           modèles et scheduler partagés
+docs/                    architecture, OpenAPI et déploiement
+```
+
+Le backend est la source de vérité : le frontend et le TUI ne stockent pas les decks, cartes, révisions ou progressions localement. Le découpage détaillé est présenté dans [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+## Données et logs
+
+En lancement local :
+
+- base SQLite : `data/korean-learning.db` ;
+- logs normaux : `logs/app.log` ;
+- logs d’erreur : `logs/error.log`.
+
+Le reset administrateur supprime les données d’apprentissage et les comptes non administrateurs, mais conserve le compte administrateur.
+
+## Déploiement Azure
+
+La production utilise [`Dockerfile.azure`](Dockerfile.azure), qui rassemble React, Gin et SQLite dans un conteneur unique. SQLite et les logs sont persistés sous `/home` sur Azure App Service.
+
+Le guide complet couvre la création de l’App Service, les variables, GitHub Actions, GHCR et le diagnostic : [`docs/AZURE_APP_SERVICE.md`](docs/AZURE_APP_SERVICE.md).
+
+Avec SQLite, conservez une seule instance de l’application. Une mise à l’échelle horizontale nécessiterait une base de données externe.
+
+## Pistes d’évolution
+
+- enrichir les exercices de grammaire et les leçons ;
+- améliorer progressivement les suggestions du journal ;
+- ajouter un format d’import compatible Anki en complément du CSV ;
+- migrer vers une base externe si l’application devient multi-instance.
