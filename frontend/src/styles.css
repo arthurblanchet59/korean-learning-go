@@ -24,7 +24,9 @@ button {
   cursor: pointer;
 }
 
-input {
+input,
+select,
+textarea {
   border: 1px solid #d8d1c3;
   border-radius: 8px;
   color: #1f2428;
@@ -32,6 +34,10 @@ input {
   min-height: 44px;
   padding: 10px 12px;
   width: 100%;
+}
+
+textarea {
+  resize: vertical;
 }
 
 .shell {
@@ -92,9 +98,12 @@ input {
 }
 
 .nav-item {
+	background: transparent;
+	border: 0;
   border-radius: 8px;
   color: #dce8e1;
   padding: 12px 14px;
+	text-align: left;
   text-decoration: none;
 }
 
@@ -194,7 +203,346 @@ input {
 .metrics {
   display: grid;
   gap: 16px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.content-stack {
+  display: grid;
+  gap: 20px;
+}
+
+.management-section,
+.lesson-list,
+.lesson-content {
+  background: #ffffff;
+  border: 1px solid #ded8ca;
+  border-radius: 8px;
+  padding: 24px;
+}
+
+.management-section h2,
+.lesson-content h2,
+.search-panel h2,
+.journal-editor h2 {
+  font-size: 24px;
+  margin: 4px 0 20px;
+}
+
+.section-heading,
+.button-row,
+.bulk-bar,
+.lesson-actions,
+.error-banner {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.section-heading h2,
+.section-heading p {
+  margin: 0;
+}
+
+.inline-form,
+.search-form {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(180px, 1fr) minmax(220px, 2fr) auto auto;
+  margin: 20px 0;
+}
+
+.card-form {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 20px 0;
+}
+
+.primary-button,
+.secondary-button,
+.danger-button,
+.text-button {
+  align-items: center;
+  border-radius: 8px;
+  display: inline-flex;
+  font-weight: 800;
+  justify-content: center;
+  min-height: 42px;
+  padding: 9px 14px;
+  text-decoration: none;
+}
+
+.secondary-button {
+  background: #edf1ef;
+  border: 1px solid #cfd9d4;
+  color: #18332f;
+}
+
+.danger-button {
+  background: #fff0ec;
+  border: 1px solid #efb7a9;
+  color: #a73620;
+}
+
+.text-button {
+  background: transparent;
+  border: 0;
+  color: #53615b;
+}
+
+.data-list {
+  display: grid;
+  gap: 8px;
+}
+
+.data-row {
+  align-items: center;
+  border-top: 1px solid #ebe5da;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  padding: 12px 0;
+}
+
+.card-row {
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+}
+
+.data-row > input[type="checkbox"] {
+  min-height: 18px;
+  width: 18px;
+}
+
+.data-row > div {
+  display: grid;
+  gap: 3px;
+}
+
+.data-row span,
+.journal-entry small,
+.journal-entry time {
+  color: #66736c;
+  font-size: 13px;
+}
+
+.tag {
+  background: #e5efe9;
+  border-radius: 6px;
+  color: #245c45 !important;
+  padding: 5px 8px;
+}
+
+.bulk-bar {
+  background: #edf4f0;
+  border-radius: 8px;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+}
+
+.bulk-bar select {
+  max-width: 240px;
+}
+
+.file-button input {
+  display: none;
+}
+
+.answer-form {
+  display: grid;
+  gap: 10px;
+}
+
+.answer-form > div {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr auto;
+}
+
+.segmented-control {
+  background: #edf1ef;
+  border-radius: 8px;
+  display: flex;
+  padding: 4px;
+}
+
+.segmented-control button {
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.segmented-control button.active {
+  background: #18332f;
+  color: #ffffff;
+}
+
+.answer.correct {
+  background: #e0f4e9;
+}
+
+.empty-state {
+  align-content: center;
+  min-height: 320px;
+  text-align: center;
+}
+
+.error-banner {
+  background: #fff0ec;
+  border: 1px solid #efb7a9;
+  border-radius: 8px;
+  color: #8d2e1b;
+  padding: 12px 16px;
+}
+
+.error-banner button {
+  background: #ffffff;
+  border: 1px solid #efb7a9;
+  border-radius: 6px;
+  padding: 7px 10px;
+}
+
+.lesson-layout,
+.journal-layout,
+.search-results,
+.admin-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: 320px minmax(0, 1fr);
+}
+
+.lesson-list {
+  align-content: start;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.lesson-list button {
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  text-align: left;
+}
+
+.lesson-list button.active,
+.lesson-list button:hover {
+  background: #edf4f0;
+}
+
+.lesson-list span,
+.lesson-list small {
+  color: #66736c;
+}
+
+.lead {
+  color: #53615b;
+  font-size: 18px;
+}
+
+.lesson-body {
+  background: #f8f5ee;
+  border-left: 4px solid #d7563f;
+  line-height: 1.8;
+  margin: 24px 0;
+  padding: 20px;
+  white-space: pre-line;
+}
+
+.lesson-actions {
+  justify-content: flex-start;
+}
+
+.lesson-actions label {
+  display: grid;
+  font-size: 12px;
+  gap: 4px;
+  width: 110px;
+}
+
+.journal-layout {
+  grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.8fr);
+}
+
+.journal-editor form,
+.journal-entry {
+  display: grid;
+  gap: 12px;
+}
+
+.correction-preview {
+  background: #edf4f0;
+  border-radius: 8px;
+  margin-top: 20px;
+  padding: 18px;
+}
+
+.correction-preview ul {
+  display: grid;
+  gap: 10px;
+  padding-left: 20px;
+}
+
+.correction-preview li span {
+  color: #53615b;
+  display: block;
+}
+
+.journal-entry {
+  border-top: 1px solid #ebe5da;
+  padding: 14px 0;
+}
+
+.journal-entry > div:first-child {
+  display: flex;
+  justify-content: space-between;
+}
+
+.korean-text {
+  font-family: "Malgun Gothic", "Noto Sans KR", sans-serif;
+  font-size: 18px;
+}
+
+.metrics-wide {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.history-chart {
+  align-items: end;
+  display: flex;
+  gap: 3px;
+  height: 150px;
+  margin-top: 24px;
+}
+
+.history-bar {
+  background: #3a8069;
+  flex: 1;
+  min-width: 4px;
+}
+
+.search-form {
+  grid-template-columns: 1fr auto;
+}
+
+.search-results {
+  grid-template-columns: 1fr 1fr;
+}
+
+.admin-grid {
+  grid-template-columns: 1fr 1fr;
+  margin: 20px 0;
+}
+
+.danger-zone {
+  background: #fff0ec;
+  border: 1px solid #efb7a9;
+  border-radius: 8px;
+  padding: 18px;
 }
 
 .metrics article,
@@ -416,12 +764,31 @@ input {
   .workspace {
     padding: 20px;
   }
+
+  .lesson-layout,
+  .journal-layout,
+  .admin-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 680px) {
   .metrics,
-  .rating-row {
+  .rating-row,
+  .card-form,
+  .inline-form,
+  .search-results {
     grid-template-columns: 1fr;
+  }
+
+  .data-row,
+  .card-row {
+    grid-template-columns: auto 1fr;
+  }
+
+  .data-row button,
+  .data-row .tag {
+    grid-column: 2;
   }
 
   .card-face h2 {

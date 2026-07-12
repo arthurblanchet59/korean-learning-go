@@ -1,89 +1,111 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { answerReviewCard, fetchDecks, fetchDueCards, fetchStats } from "../../../shared/api/studyApi.js";
-import { fallbackCards, fallbackDecks, fallbackStats } from "../../../shared/data/fallbackStudyData.js";
+import {
+  answerReviewCard,
+  fetchCards,
+  fetchDecks,
+  fetchDifficultCards,
+  fetchDueCards,
+  fetchJournal,
+  fetchLessons,
+  fetchStats
+} from "../../../shared/api/studyApi.js";
+
+const emptyStats = {
+  totalCards: 0,
+  dueCards: 0,
+  newCards: 0,
+  difficultCards: 0,
+  masteredCards: 0,
+  reviewsToday: 0,
+  accuracyPercent: 0,
+  currentStreak: 0,
+  longestStreak: 0,
+  reviewHistory: []
+};
 
 export function useStudyDashboard(authToken) {
-  const [cards, setCards] = useState([]);
-  const [decks, setDecks] = useState([]);
-  const [stats, setStats] = useState(fallbackStats);
+  const [data, setData] = useState({
+    cards: [],
+    dueCards: [],
+    difficultCards: [],
+    decks: [],
+    lessons: [],
+    journal: [],
+    stats: emptyStats
+  });
   const [activeIndex, setActiveIndex] = useState(0);
-  const [apiOnline, setAPIOnline] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const loadDashboard = useCallback(async () => {
+  const reload = useCallback(async () => {
     setIsLoading(true);
-
-    const [statsResult, cardsResult, decksResult] = await Promise.all([
+    const results = await Promise.all([
       fetchStats(authToken),
       fetchDueCards(authToken),
-      fetchDecks(authToken)
+      fetchCards(authToken),
+      fetchDifficultCards(authToken),
+      fetchDecks(authToken),
+      fetchLessons(authToken),
+      fetchJournal(authToken)
     ]);
-
-    setAPIOnline(statsResult.fromAPI || cardsResult.fromAPI || decksResult.fromAPI);
-    setStats(statsResult.data ?? fallbackStats);
-    setCards(cardsResult.data ?? fallbackCards);
-    setDecks(decksResult.data ?? fallbackDecks);
+    const failed = results.find((result) => !result.ok);
+    if (failed) {
+      setError(failed.error || "Impossible de charger les donnees.");
+    } else {
+      setError("");
+    }
+    setData({
+      stats: results[0].data ?? emptyStats,
+      dueCards: results[1].data ?? [],
+      cards: results[2].data ?? [],
+      difficultCards: results[3].data ?? [],
+      decks: results[4].data ?? [],
+      lessons: results[5].data ?? [],
+      journal: results[6].data ?? []
+    });
     setActiveIndex(0);
     setIsLoading(false);
   }, [authToken]);
 
   useEffect(() => {
-    loadDashboard();
-  }, [loadDashboard]);
+    reload();
+  }, [reload]);
 
-  const activeCard = useMemo(() => cards[activeIndex], [cards, activeIndex]);
+  const activeCard = useMemo(() => data.dueCards[activeIndex], [data.dueCards, activeIndex]);
 
-  const refreshStats = useCallback(async () => {
-    const result = await fetchStats(authToken);
-    setStats(result.data ?? fallbackStats);
-  }, [authToken]);
+  const answerCard = useCallback(async (rating) => {
+    if (!activeCard) return false;
+    const result = await answerReviewCard(activeCard.id, rating, authToken);
+    if (!result.ok) {
+      setError(result.error);
+      return false;
+    }
+    await reload();
+    return true;
+  }, [activeCard, authToken, reload]);
 
-  const answerCard = useCallback(
-    async (rating) => {
-      const card = cards[activeIndex];
-      if (!card) {
-        return;
-      }
-
-      if (!apiOnline) {
-        setActiveIndex((current) => (cards.length === 0 ? 0 : (current + 1) % cards.length));
-        return;
-      }
-
-      const result = await answerReviewCard(card.id, rating, authToken);
-      if (!result.ok) {
-        return;
-      }
-
-      setCards((currentCards) => {
-        const nextCards = currentCards.filter((currentCard) => currentCard.id !== card.id);
-        setActiveIndex((current) => Math.min(current, Math.max(nextCards.length - 1, 0)));
-        return nextCards;
-      });
-      await refreshStats();
-    },
-    [activeIndex, apiOnline, authToken, cards, refreshStats]
-  );
-
-  const selectCard = useCallback((index) => {
-    setActiveIndex(index);
-  }, []);
-
-  const restartSession = useCallback(() => {
-    setActiveIndex(0);
-  }, []);
+  const runMutation = useCallback(async (operation) => {
+    const result = await operation();
+    if (!result.ok) {
+      setError(result.error || "L'operation a echoue.");
+      return result;
+    }
+    setError("");
+    await reload();
+    return result;
+  }, [reload]);
 
   return {
-    apiOnline,
-    cards,
-    decks,
-    stats,
+    ...data,
     activeCard,
     activeIndex,
+    apiOnline: !error,
+    error,
     isLoading,
     answerCard,
-    selectCard,
-    restartSession
+    reload,
+    runMutation,
+    selectCard: setActiveIndex
   };
 }
