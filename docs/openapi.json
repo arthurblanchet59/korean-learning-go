@@ -19,7 +19,9 @@
     { "name": "Cards", "description": "Gestion CRUD des flashcards" },
     { "name": "Study", "description": "Revision espacee et reponses aux cartes" },
     { "name": "Search", "description": "Recherche sur les ressources" },
-    { "name": "Stats", "description": "Statistiques de revision" }
+    { "name": "Stats", "description": "Statistiques de revision" },
+    { "name": "Lessons", "description": "Lecons guidees et progression personnelle" },
+    { "name": "Journal", "description": "Journal coreen et correction automatique expliquee" }
   ],
   "paths": {
     "/health": {
@@ -699,6 +701,43 @@
           }
         }
       }
+    },
+    "/study/cards/{id}/check": {
+      "post": {
+        "tags": ["Study"],
+        "summary": "Verifier une reponse saisie sans modifier la planification",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/ID" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["answer"], "properties": { "answer": { "type": "string", "example": "bonjour" }, "direction": { "type": "string", "enum": ["korean-to-french", "french-to-korean"] } } } } } },
+        "responses": { "200": { "description": "Resultat et reponse attendue" }, "400": { "$ref": "#/components/responses/BadRequest" }, "404": { "$ref": "#/components/responses/NotFound" } }
+      }
+    },
+    "/api/cards/export": {
+      "get": { "tags": ["Cards"], "summary": "Exporter les cartes personnelles en CSV", "security": [{ "bearerAuth": [] }], "responses": { "200": { "description": "Fichier CSV", "content": { "text/csv": { "schema": { "type": "string" } } } } } }
+    },
+    "/api/cards/import": {
+      "post": { "tags": ["Cards"], "summary": "Importer des cartes CSV dans un deck personnel", "security": [{ "bearerAuth": [] }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["deckId", "csv"], "properties": { "deckId": { "type": "string" }, "csv": { "type": "string" } } } } } }, "responses": { "201": { "description": "Cartes importees" }, "400": { "$ref": "#/components/responses/BadRequest" } } }
+    },
+    "/api/lessons": {
+      "get": { "tags": ["Lessons"], "summary": "Lister les lecons avec la progression du compte", "security": [{ "bearerAuth": [] }], "responses": { "200": { "description": "Lecons ordonnees" } } }
+    },
+    "/api/lessons/{id}": {
+      "get": { "tags": ["Lessons"], "summary": "Afficher une lecon", "security": [{ "bearerAuth": [] }], "parameters": [{ "$ref": "#/components/parameters/ID" }], "responses": { "200": { "description": "Lecon et progression" }, "404": { "$ref": "#/components/responses/NotFound" } } }
+    },
+    "/api/lessons/{id}/progress": {
+      "put": { "tags": ["Lessons"], "summary": "Mettre a jour sa progression", "security": [{ "bearerAuth": [] }], "parameters": [{ "$ref": "#/components/parameters/ID" }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "completed": { "type": "boolean" }, "score": { "type": "integer", "minimum": 0, "maximum": 100 } } } } } }, "responses": { "200": { "description": "Progression enregistree" }, "404": { "$ref": "#/components/responses/NotFound" } } }
+    },
+    "/api/journal": {
+      "get": { "tags": ["Journal"], "summary": "Lister ses entrees de journal", "security": [{ "bearerAuth": [] }], "responses": { "200": { "description": "Entrees corrigees" } } },
+      "post": { "tags": ["Journal"], "summary": "Corriger et enregistrer une entree", "security": [{ "bearerAuth": [] }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["text"], "properties": { "title": { "type": "string" }, "text": { "type": "string", "example": "저 는 한국어를 공부 해요" } } } } } }, "responses": { "201": { "description": "Entree, texte corrige et explications" }, "400": { "$ref": "#/components/responses/BadRequest" } } }
+    },
+    "/api/journal/correct": {
+      "post": { "tags": ["Journal"], "summary": "Previsualiser une correction sans enregistrer", "security": [{ "bearerAuth": [] }], "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["text"], "properties": { "title": { "type": "string" }, "text": { "type": "string" } } } } } }, "responses": { "200": { "description": "Texte corrige et explications" } } }
+    },
+    "/api/journal/{id}": {
+      "get": { "tags": ["Journal"], "summary": "Afficher une entree personnelle", "security": [{ "bearerAuth": [] }], "parameters": [{ "$ref": "#/components/parameters/ID" }], "responses": { "200": { "description": "Entree corrigee" }, "404": { "$ref": "#/components/responses/NotFound" } } },
+      "put": { "tags": ["Journal"], "summary": "Modifier et recorriger une entree", "security": [{ "bearerAuth": [] }], "parameters": [{ "$ref": "#/components/parameters/ID" }], "responses": { "200": { "description": "Entree mise a jour" }, "404": { "$ref": "#/components/responses/NotFound" } } },
+      "delete": { "tags": ["Journal"], "summary": "Supprimer une entree", "security": [{ "bearerAuth": [] }], "parameters": [{ "$ref": "#/components/parameters/ID" }], "responses": { "204": { "description": "Entree supprimee" }, "404": { "$ref": "#/components/responses/NotFound" } } }
     }
   },
   "components": {
@@ -949,7 +988,13 @@
           "totalCards": { "type": "integer" },
           "dueCards": { "type": "integer" },
           "newCards": { "type": "integer" },
-          "difficultCards": { "type": "integer" }
+          "difficultCards": { "type": "integer" },
+          "masteredCards": { "type": "integer" },
+          "reviewsToday": { "type": "integer" },
+          "accuracyPercent": { "type": "number" },
+          "currentStreak": { "type": "integer" },
+          "longestStreak": { "type": "integer" },
+          "reviewHistory": { "type": "array", "items": { "type": "object", "properties": { "date": { "type": "string", "format": "date" }, "reviews": { "type": "integer" }, "correct": { "type": "integer" } } } }
         }
       },
       "SearchResult": {
@@ -1016,7 +1061,9 @@
               "deletedReviews": { "type": "integer" },
               "deletedCards": { "type": "integer" },
               "deletedDecks": { "type": "integer" },
-              "deletedUsers": { "type": "integer" }
+              "deletedUsers": { "type": "integer" },
+              "deletedJournal": { "type": "integer" },
+              "deletedProgress": { "type": "integer" }
             }
           }
         }

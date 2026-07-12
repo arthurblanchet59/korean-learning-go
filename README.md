@@ -16,6 +16,10 @@ Le projet vise un usage quotidien, proche d'Anki pour la revision espacee, avec 
 - Calculer la prochaine revision via un algorithme simple de repetition espacee.
 - Exposer une API REST pour le front et le TUI.
 - Fournir un TUI rapide pour les revisions quotidiennes.
+- Isoler les decks, cartes, revisions et statistiques de chaque utilisateur.
+- Proposer des lecons guidees et suivre leur progression.
+- Ecrire un journal en coreen avec des corrections automatiques expliquees.
+- Importer et exporter les cartes au format CSV.
 
 ## Structure
 
@@ -37,8 +41,7 @@ docs/
 ```powershell
 go test ./...
 go run .
-go run ./apps/tui -- today
-go run ./apps/tui -- review
+go run ./apps/tui
 ```
 
 Une fois le backend lance avec `go run .`:
@@ -96,10 +99,18 @@ En local:
 go run .
 ```
 
+Dans un second terminal, le TUI plein ecran se lance avec:
+
+```powershell
+go run ./apps/tui
+```
+
+Le TUI utilise `KOREAN_API_URL` (par defaut `http://localhost:8080`) et conserve le JWT dans le dossier personnel. Raccourcis principaux: `h/l` pour les onglets, `j/k` pour naviguer, espace pour reveler une carte, `1` a `4` pour noter, `/` pour rechercher, `:` pour la palette de commandes et `?` pour l'aide.
+
 ## Roadmap courte
 
 1. Base domaine + scheduler de revision.
 2. Backend avec stockage local.
-3. TUI utilisable pour `today`, `add`, `review`, `stats`.
-4. Front web pour dashboard, decks, ajout de cartes et revision.
-5. Import/export CSV compatible Anki.
+3. Enrichir les exercices de grammaire et la bibliotheque de lecons.
+4. Ajouter un vrai format d'import `.apkg` en complement du CSV.
+5. Ameliorer progressivement le correcteur local du journal.

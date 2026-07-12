@@ -199,6 +199,72 @@ Authorization: Bearer {{token}}
 GET {{baseUrl}}/api/cards/difficult
 Authorization: Bearer {{token}}
 
+### Check a typed answer without scheduling the card
+POST {{baseUrl}}/study/cards/{{cardId}}/check
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "answer": "bonjour",
+  "direction": "korean-to-french"
+}
+
+### List guided lessons with personal progress
+GET {{baseUrl}}/api/lessons
+Authorization: Bearer {{token}}
+
+### Complete a lesson
+PUT {{baseUrl}}/api/lessons/hangul-1/progress
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "completed": true,
+  "score": 90
+}
+
+### Preview Korean journal correction
+POST {{baseUrl}}/api/journal/correct
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "Ma journee",
+  "text": "저 는 오늘 한국어를 공부 해요"
+}
+
+### Save a corrected journal entry
+POST {{baseUrl}}/api/journal
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "title": "Ma journee",
+  "text": "저 는 오늘 한국어를 공부 해요"
+}
+
+### List journal entries
+GET {{baseUrl}}/api/journal
+Authorization: Bearer {{token}}
+
+### Get one journal entry
+GET {{baseUrl}}/api/journal/journal-entry-id
+Authorization: Bearer {{token}}
+
+### Export personal cards as CSV
+GET {{baseUrl}}/api/cards/export
+Authorization: Bearer {{token}}
+
+### Import cards from CSV content
+POST {{baseUrl}}/api/cards/import
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "deckId": "{{deckId}}",
+  "csv": "korean,translation,romanization\n사랑,amour,sarang"
+}
+
 ### Admin update non-admin user
 PUT {{baseUrl}}/admin/users/user-id-to-update
 Authorization: Bearer {{token}}
