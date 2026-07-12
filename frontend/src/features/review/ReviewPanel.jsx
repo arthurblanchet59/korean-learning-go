@@ -55,7 +55,6 @@ export function ReviewPanel({ card, activeIndex, totalCards, isLoading, onAnswer
 
       <div className="card-face">
         <h2>{prompt}</h2>
-        {direction === "korean-to-french" && <p>{card.romanization}</p>}
       </div>
 
       {!revealed ? (
@@ -72,6 +71,7 @@ export function ReviewPanel({ card, activeIndex, totalCards, isLoading, onAnswer
           <div className={result?.correct ? "answer correct" : "answer"}>
             <span>{result ? (result.correct ? "Bonne reponse" : "A revoir") : "Reponse"}</span>
             <strong>{expected}</strong>
+            {card.romanization && <small>{card.romanization}</small>}
           </div>
           {card.exampleKorean && <p className="example">{card.exampleKorean}<br /><span>{card.exampleTranslation}</span></p>}
           <div className="rating-row" aria-label="Notation de la carte">

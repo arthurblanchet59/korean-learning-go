@@ -10,6 +10,7 @@ import (
 	"unicode"
 
 	"github.com/google/uuid"
+	"golang.org/x/text/unicode/norm"
 
 	"github.com/arthurblanchet59/korean-learning-go/packages/core"
 )
@@ -259,8 +260,11 @@ func applyReviewStats(stats *core.StudyStats, reviews []core.Review, now time.Ti
 }
 
 func normalizeAnswer(value string) string {
-	value = strings.ToLower(strings.TrimSpace(value))
+	value = norm.NFD.String(strings.ToLower(strings.TrimSpace(value)))
 	return strings.Map(func(r rune) rune {
+		if unicode.Is(unicode.Mn, r) {
+			return -1
+		}
 		if unicode.IsLetter(r) || unicode.IsNumber(r) || unicode.In(r, unicode.Hangul) {
 			return r
 		}

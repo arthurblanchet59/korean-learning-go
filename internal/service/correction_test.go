@@ -18,3 +18,9 @@ func TestCorrectKoreanBatchimParticle(t *testing.T) {
 		t.Fatalf("expected topic particle correction, got %q", corrected)
 	}
 }
+
+func TestNormalizeAnswerIgnoresFrenchDiacritics(t *testing.T) {
+	if normalizeAnswer("À l'école !") != normalizeAnswer("a lecole") {
+		t.Fatal("expected French diacritics and punctuation to be ignored")
+	}
+}

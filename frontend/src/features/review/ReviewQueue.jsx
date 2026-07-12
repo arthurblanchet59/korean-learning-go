@@ -1,4 +1,10 @@
-export function ReviewQueue({ cards, activeIndex, onSelect }) {
+const kindLabels = {
+  hangul: "Hangeul",
+  phrase: "Phrase",
+  vocabulary: "Vocabulaire"
+};
+
+export function ReviewQueue({ cards, activeIndex, isLoading, onSelect }) {
   return (
     <aside className="queue-panel" aria-label="Cartes a reviser">
       <div className="panel-heading">
@@ -9,7 +15,9 @@ export function ReviewQueue({ cards, activeIndex, onSelect }) {
       <div className="queue-list">
         {cards.length === 0 ? (
           <div className="queue-empty">
-            Lance le backend pour charger les cartes dues depuis l'API.
+            {isLoading
+              ? "Chargement des cartes dues..."
+              : "Aucune carte due aujourd'hui. Profite-en pour parcourir une lecon ou enrichir ta bibliotheque."}
           </div>
         ) : (
           cards.map((card, index) => (
@@ -19,8 +27,8 @@ export function ReviewQueue({ cards, activeIndex, onSelect }) {
               type="button"
               onClick={() => onSelect(index)}
             >
-              <strong>{card.korean}</strong>
-              <span>{card.translation}</span>
+              <strong>Carte {index + 1}</strong>
+              <span>{kindLabels[card.kind] ?? "Revision"}{card.tags?.[0] ? ` · ${card.tags[0]}` : ""}</span>
             </button>
           ))
         )}

@@ -53,7 +53,15 @@ func TestSeedUserCreatesIndependentStarterDeck(t *testing.T) {
 	}
 	decks, _ := store.ListDecks(context.Background(), "learner")
 	cards, _ := store.ListCards(context.Background(), "learner")
-	if len(decks) != 1 || len(cards) != 3 {
+	if len(decks) != len(core.SeedDecks(time.Now())) || len(cards) != len(core.SeedCards(time.Now())) {
 		t.Fatalf("expected starter content, got %d decks and %d cards", len(decks), len(cards))
+	}
+	if err := store.SeedUser(context.Background(), "learner"); err != nil {
+		t.Fatal(err)
+	}
+	decks, _ = store.ListDecks(context.Background(), "learner")
+	cards, _ = store.ListCards(context.Background(), "learner")
+	if len(decks) != len(core.SeedDecks(time.Now())) || len(cards) != len(core.SeedCards(time.Now())) {
+		t.Fatalf("seed should be idempotent, got %d decks and %d cards", len(decks), len(cards))
 	}
 }

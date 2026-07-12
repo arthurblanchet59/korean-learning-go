@@ -445,12 +445,43 @@ textarea {
 }
 
 .lesson-body {
-  background: #f8f5ee;
-  border-left: 4px solid #d7563f;
-  line-height: 1.8;
+  border-bottom: 1px solid #ded8ca;
+  border-top: 1px solid #ded8ca;
+  display: grid;
   margin: 24px 0;
-  padding: 20px;
+  padding: 4px 0;
+}
+
+.lesson-section {
+  border-bottom: 1px solid #ebe5da;
+  padding: 18px 4px;
+}
+
+.lesson-section:last-child {
+  border-bottom: 0;
+}
+
+.lesson-section h3 {
+  color: #a43f31;
+  font-size: 12px;
+  margin: 0 0 8px;
+}
+
+.lesson-section p {
+  line-height: 1.75;
+  margin: 0;
   white-space: pre-line;
+}
+
+.lesson-section.correction {
+  background: #edf4f0;
+  padding-left: 14px;
+  padding-right: 14px;
+}
+
+.correction-toggle {
+  justify-self: start;
+  margin: 16px 4px;
 }
 
 .lesson-actions {
@@ -461,7 +492,7 @@ textarea {
   display: grid;
   font-size: 12px;
   gap: 4px;
-  width: 110px;
+  width: 140px;
 }
 
 .journal-layout {
@@ -609,7 +640,14 @@ textarea {
 }
 
 .answer strong {
+  display: block;
   font-size: 22px;
+}
+
+.answer small {
+  color: #53615b;
+  display: block;
+  margin-top: 4px;
 }
 
 .rating-row {
@@ -754,15 +792,63 @@ textarea {
 @media (max-width: 940px) {
   .shell,
   .study-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .sidebar {
-    padding: 20px;
+    gap: 14px;
+    min-width: 0;
+    padding: 16px 20px;
+    width: 100%;
+  }
+
+  .nav-list {
+    display: flex;
+    gap: 8px;
+    min-width: 0;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+  }
+
+  .nav-list::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav-item {
+    flex: 0 0 auto;
+    padding: 10px 14px;
+    text-align: center;
+  }
+
+  .side-panel:not(.user-panel) {
+    display: none;
+  }
+
+  .user-panel {
+    align-items: center;
+    display: flex;
+    margin-top: 0;
+    padding: 10px 12px;
+  }
+
+  .user-panel > span {
+    display: none;
+  }
+
+  .user-panel small {
+    flex: 1;
+  }
+
+  .user-panel button {
+    min-height: 36px;
+    padding: 0 14px;
   }
 
   .workspace {
+    min-width: 0;
     padding: 20px;
+    width: 100%;
   }
 
   .lesson-layout,
@@ -793,5 +879,9 @@ textarea {
 
   .card-face h2 {
     font-size: 42px;
+  }
+
+  .user-panel small {
+    display: none;
   }
 }

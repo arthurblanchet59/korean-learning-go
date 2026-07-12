@@ -32,12 +32,6 @@ func main() {
 		log.Fatalf("run sqlite migrations: %v", err)
 	}
 
-	if cfg.SeedDatabase {
-		if err := store.SeedIfEmpty(); err != nil {
-			log.Fatalf("seed sqlite database: %v", err)
-		}
-	}
-
 	studyService := service.NewStudyService(store, store, store, store, store, core.NewScheduler())
 	authService := service.NewAuthService(store, cfg.JWTSecret)
 	adminService := service.NewAdminService(store)
@@ -48,6 +42,11 @@ func main() {
 		cfg.AdminPassword,
 	); err != nil {
 		log.Fatalf("seed admin user: %v", err)
+	}
+	if cfg.SeedDatabase {
+		if err := store.SeedAllUsers(ctx); err != nil {
+			log.Fatalf("seed study curriculum: %v", err)
+		}
 	}
 
 	router := api.NewRouter(

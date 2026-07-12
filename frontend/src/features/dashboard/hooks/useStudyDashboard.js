@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   answerReviewCard,
+  checkCardAnswer,
   fetchCards,
   fetchDecks,
   fetchDifficultCards,
@@ -85,6 +86,16 @@ export function useStudyDashboard(authToken) {
     return true;
   }, [activeCard, authToken, reload]);
 
+  const checkAnswer = useCallback(async (id, answer, direction) => {
+    const result = await checkCardAnswer(id, answer, direction, authToken);
+    if (!result.ok) {
+      setError(result.error || "Impossible de verifier la reponse.");
+      return null;
+    }
+    setError("");
+    return result.data;
+  }, [authToken]);
+
   const runMutation = useCallback(async (operation) => {
     const result = await operation();
     if (!result.ok) {
@@ -104,6 +115,7 @@ export function useStudyDashboard(authToken) {
     error,
     isLoading,
     answerCard,
+    checkAnswer,
     reload,
     runMutation,
     selectCard: setActiveIndex

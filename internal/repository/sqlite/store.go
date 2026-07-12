@@ -21,6 +21,8 @@ type Store struct {
 	db *sql.DB
 }
 
+const curriculumSeedVersion = 2
+
 func Open(path string) (*Store, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, err
@@ -120,6 +122,12 @@ func (store *Store) Migrate() error {
 			created_at TEXT NOT NULL,
 			updated_at TEXT NOT NULL
 		);
+
+		CREATE TABLE IF NOT EXISTS user_seed_versions (
+			user_id TEXT PRIMARY KEY,
+			version INTEGER NOT NULL,
+			updated_at TEXT NOT NULL
+		);
 	`); err != nil {
 		return err
 	}
@@ -159,11 +167,12 @@ func (store *Store) SeedIfEmpty() error {
 }
 
 func (store *Store) SeedUser(ctx context.Context, userID string) error {
-	var count int
-	if err := store.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM decks WHERE user_id = ?`, userID).Scan(&count); err != nil {
+	var version int
+	err := store.db.QueryRowContext(ctx, `SELECT version FROM user_seed_versions WHERE user_id = ?`, userID).Scan(&version)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return err
 	}
-	if count > 0 {
+	if version >= curriculumSeedVersion {
 		return nil
 	}
 
@@ -174,26 +183,68 @@ func (store *Store) SeedUser(ctx context.Context, userID string) error {
 	}
 	defer rollback(tx)
 
-	deck := core.SeedDeck(now)
-	deck.ID = userID + "-starter"
-	deck.UserID = userID
-	if _, err := tx.Exec(`
-		INSERT INTO decks (id, user_id, name, description, created_at)
-		VALUES (?, ?, ?, ?, ?)
-	`, deck.ID, deck.UserID, deck.Name, deck.Description, formatTime(deck.CreatedAt)); err != nil {
-		return err
-	}
-
-	for index, card := range core.SeedCards(now) {
-		card.ID = fmt.Sprintf("%s-starter-%d", userID, index+1)
-		card.UserID = userID
-		card.DeckID = deck.ID
-		if err := insertCard(tx, card); err != nil {
+	deckIDs := make(map[string]string)
+	for _, deck := range core.SeedDecks(now) {
+		templateID := deck.ID
+		deck.ID = userID + "-" + templateID
+		deck.UserID = userID
+		deckIDs[templateID] = deck.ID
+		if _, err := tx.Exec(`
+			INSERT INTO decks (id, user_id, name, description, created_at)
+			VALUES (?, ?, ?, ?, ?)
+			ON CONFLICT(id) DO NOTHING
+		`, deck.ID, deck.UserID, deck.Name, deck.Description, formatTime(deck.CreatedAt)); err != nil {
 			return err
 		}
 	}
 
+	for _, card := range core.SeedCards(now) {
+		card.ID = userID + "-" + card.ID
+		card.UserID = userID
+		card.DeckID = deckIDs[card.DeckID]
+		if err := insertSeedCard(tx, card); err != nil {
+			return err
+		}
+	}
+
+	if _, err := tx.Exec(`
+		INSERT INTO user_seed_versions (user_id, version, updated_at)
+		VALUES (?, ?, ?)
+		ON CONFLICT(user_id) DO UPDATE SET
+			version = excluded.version,
+			updated_at = excluded.updated_at
+	`, userID, curriculumSeedVersion, formatTime(now)); err != nil {
+		return err
+	}
+
 	return tx.Commit()
+}
+
+func (store *Store) SeedAllUsers(ctx context.Context) error {
+	rows, err := store.db.QueryContext(ctx, `SELECT id FROM users ORDER BY created_at ASC`)
+	if err != nil {
+		return err
+	}
+
+	userIDs := make([]string, 0)
+	for rows.Next() {
+		var userID string
+		if err := rows.Scan(&userID); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		userIDs = append(userIDs, userID)
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+
+	for _, userID := range userIDs {
+		if err := store.SeedUser(ctx, userID); err != nil {
+			return fmt.Errorf("seed curriculum for user %s: %w", userID, err)
+		}
+	}
+	return nil
 }
 
 func (store *Store) ensureColumn(table string, column string, definition string) error {
@@ -618,6 +669,9 @@ func (store *Store) Reset(ctx context.Context) (repository.ResetResult, error) {
 	if result.DeletedProgress, resetErr = execDelete(ctx, tx, `DELETE FROM lesson_progress`); resetErr != nil {
 		return repository.ResetResult{}, resetErr
 	}
+	if _, resetErr = execDelete(ctx, tx, `DELETE FROM user_seed_versions`); resetErr != nil {
+		return repository.ResetResult{}, resetErr
+	}
 	if result.DeletedUsers, resetErr = execDelete(ctx, tx, `DELETE FROM users WHERE is_admin = 0`); resetErr != nil {
 		return repository.ResetResult{}, resetErr
 	}
@@ -630,6 +684,14 @@ func (store *Store) Reset(ctx context.Context) (repository.ResetResult, error) {
 }
 
 func insertCard(tx *sql.Tx, card core.Card) error {
+	return insertCardWithConflict(tx, card, "")
+}
+
+func insertSeedCard(tx *sql.Tx, card core.Card) error {
+	return insertCardWithConflict(tx, card, "ON CONFLICT(id) DO NOTHING")
+}
+
+func insertCardWithConflict(tx *sql.Tx, card core.Card, conflictClause string) error {
 	tagsJSON, err := json.Marshal(card.Tags)
 	if err != nil {
 		return err
@@ -643,6 +705,7 @@ func insertCard(tx *sql.Tx, card core.Card) error {
 			review_count, lapse_count
 		)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`+conflictClause+`
 	`, card.ID, card.UserID, card.DeckID, card.Kind, card.Korean, card.Translation, card.Romanization,
 		card.ExampleKorean, card.ExampleTranslation, string(tagsJSON), formatTime(card.CreatedAt),
 		formatTime(card.ReviewState.NextReviewAt), nullableTime(card.ReviewState.LastReviewAt),
