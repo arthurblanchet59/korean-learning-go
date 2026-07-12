@@ -57,6 +57,11 @@ func main() {
 		appLogger.AccessMiddleware(),
 		appLogger.RecoveryMiddleware(),
 	)
+	if cfg.WebRoot != "" {
+		if err := api.ServeWebApp(router, cfg.WebRoot); err != nil {
+			log.Fatalf("configure web application: %v", err)
+		}
+	}
 
 	log.Printf("korean-learning API listening on http://localhost%s", cfg.HTTPAddr)
 	if err := router.Run(cfg.HTTPAddr); err != nil {

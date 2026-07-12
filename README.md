@@ -33,6 +33,7 @@ packages/
   core/      domaine partage: decks, cartes, reviews, scheduling
 docs/
   ARCHITECTURE.md
+  AZURE_APP_SERVICE.md
   openapi.json
 ```
 
@@ -79,6 +80,10 @@ docker compose up --build
 ```
 
 Docker Desktop doit etre demarre avant d'executer cette commande.
+
+## Deploiement Azure App Service
+
+Le deploiement Azure utilise un conteneur unique qui sert le frontend React, l'API Gin et la base SQLite persistante sous `/home`. La configuration complete de l'App Service, de GitHub Actions et des secrets est decrite dans [`docs/AZURE_APP_SERVICE.md`](docs/AZURE_APP_SERVICE.md).
 
 Variables utiles:
 
