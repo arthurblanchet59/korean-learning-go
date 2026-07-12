@@ -30,9 +30,14 @@ func (scheduler Scheduler) Schedule(previous State, rating Rating, now time.Time
 		next.EaseFactor = maxFloat(1.3, next.EaseFactor-0.2)
 		next.NextReviewAt = now.Add(scheduler.AgainDelay)
 	case RatingHard:
-		next.IntervalDays = maxInt(1, previous.IntervalDays)
 		next.EaseFactor = maxFloat(1.3, next.EaseFactor-0.15)
-		next.NextReviewAt = now.Add(scheduler.HardDelay)
+		if previous.IntervalDays <= 0 {
+			next.IntervalDays = 0
+			next.NextReviewAt = now.Add(scheduler.HardDelay)
+		} else {
+			next.IntervalDays = maxInt(1, int(float64(previous.IntervalDays)*0.8))
+			next.NextReviewAt = now.AddDate(0, 0, next.IntervalDays)
+		}
 	case RatingGood:
 		next.IntervalDays = nextGoodInterval(previous.IntervalDays, next.EaseFactor)
 		next.NextReviewAt = now.AddDate(0, 0, next.IntervalDays)

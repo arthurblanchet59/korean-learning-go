@@ -12,10 +12,12 @@ func TestCorrectKoreanSpacingAndParticles(t *testing.T) {
 	}
 }
 
-func TestCorrectKoreanBatchimParticle(t *testing.T) {
-	corrected, _ := CorrectKorean("학교은 좋아요")
-	if corrected != "학교는 좋아요." {
-		t.Fatalf("expected topic particle correction, got %q", corrected)
+func TestCorrectKoreanDoesNotRewriteAmbiguousWordEndings(t *testing.T) {
+	for _, input := range []string{"아이 예뻐요", "마을 좋아요"} {
+		corrected, _ := CorrectKorean(input)
+		if corrected != input+"." {
+			t.Fatalf("valid Korean was rewritten: input=%q corrected=%q", input, corrected)
+		}
 	}
 }
 

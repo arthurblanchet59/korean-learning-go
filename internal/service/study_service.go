@@ -122,16 +122,8 @@ func (service *StudyService) UpdateDeck(ctx context.Context, userID string, id s
 	if err != nil {
 		return core.Deck{}, err
 	}
-
-	if input.Name != nil {
-		name := strings.TrimSpace(*input.Name)
-		if name == "" {
-			return core.Deck{}, fmt.Errorf("deck name cannot be empty")
-		}
-		deck.Name = name
-	}
-	if input.Description != nil {
-		deck.Description = strings.TrimSpace(*input.Description)
+	if err := applyDeckPatch(&deck, input); err != nil {
+		return core.Deck{}, err
 	}
 
 	if err := service.decks.UpdateDeck(ctx, userID, deck); err != nil {
@@ -149,13 +141,18 @@ func (service *StudyService) UpdateDecks(ctx context.Context, userID string, ids
 
 	updated := make([]core.Deck, 0, len(cleaned))
 	for _, id := range cleaned {
-		deck, err := service.UpdateDeck(ctx, userID, id, input)
+		deck, err := service.decks.FindDeckByID(ctx, userID, id)
 		if err != nil {
+			return nil, err
+		}
+		if err := applyDeckPatch(&deck, input); err != nil {
 			return nil, err
 		}
 		updated = append(updated, deck)
 	}
-
+	if err := service.decks.UpdateDecks(ctx, userID, updated); err != nil {
+		return nil, err
+	}
 	return updated, nil
 }
 
@@ -207,19 +204,31 @@ func (service *StudyService) UpdateCard(ctx context.Context, userID string, id s
 		return core.Card{}, err
 	}
 
+	if err := service.applyCardPatch(ctx, userID, &card, input); err != nil {
+		return core.Card{}, err
+	}
+
+	if err := service.cards.UpdateCard(ctx, userID, card); err != nil {
+		return core.Card{}, err
+	}
+
+	return card, nil
+}
+
+func (service *StudyService) applyCardPatch(ctx context.Context, userID string, card *core.Card, input CardPatchInput) error {
 	if input.DeckID != nil {
 		deckID := strings.TrimSpace(*input.DeckID)
 		if deckID == "" {
-			return core.Card{}, fmt.Errorf("deckId cannot be empty")
+			return fmt.Errorf("deckId cannot be empty")
 		}
 		if _, err := service.decks.FindDeckByID(ctx, userID, deckID); err != nil {
-			return core.Card{}, err
+			return err
 		}
 		card.DeckID = deckID
 	}
 	if input.Kind != nil {
 		if err := validateCardKind(*input.Kind); err != nil {
-			return core.Card{}, err
+			return err
 		}
 		card.Kind = *input.Kind
 	}
@@ -242,14 +251,9 @@ func (service *StudyService) UpdateCard(ctx context.Context, userID string, id s
 		card.Tags = cleanTags(*input.Tags)
 	}
 	if card.Korean == "" || card.Translation == "" {
-		return core.Card{}, fmt.Errorf("korean and translation are required")
+		return fmt.Errorf("korean and translation are required")
 	}
-
-	if err := service.cards.UpdateCard(ctx, userID, card); err != nil {
-		return core.Card{}, err
-	}
-
-	return card, nil
+	return nil
 }
 
 func (service *StudyService) UpdateCards(ctx context.Context, userID string, ids []string, input CardPatchInput) ([]core.Card, error) {
@@ -260,13 +264,18 @@ func (service *StudyService) UpdateCards(ctx context.Context, userID string, ids
 
 	updated := make([]core.Card, 0, len(cleaned))
 	for _, id := range cleaned {
-		card, err := service.UpdateCard(ctx, userID, id, input)
+		card, err := service.cards.FindCardByID(ctx, userID, id)
 		if err != nil {
+			return nil, err
+		}
+		if err := service.applyCardPatch(ctx, userID, &card, input); err != nil {
 			return nil, err
 		}
 		updated = append(updated, card)
 	}
-
+	if err := service.cards.UpdateCards(ctx, userID, updated); err != nil {
+		return nil, err
+	}
 	return updated, nil
 }
 
@@ -334,10 +343,6 @@ func (service *StudyService) AnswerCard(ctx context.Context, userID string, card
 	next := service.scheduler.Schedule(previous, rating, reviewedAt)
 	card.ReviewState = next
 
-	if err := service.cards.UpdateCard(ctx, userID, card); err != nil {
-		return core.Review{}, err
-	}
-
 	review := core.Review{
 		ID:         fmt.Sprintf("review-%s-%d", cardID, reviewedAt.UnixNano()),
 		UserID:     userID,
@@ -348,11 +353,25 @@ func (service *StudyService) AnswerCard(ctx context.Context, userID string, card
 		Next:       next,
 	}
 
-	if err := service.reviews.CreateReview(ctx, review); err != nil {
+	if err := service.reviews.SaveReview(ctx, userID, card, review); err != nil {
 		return core.Review{}, err
 	}
 
 	return review, nil
+}
+
+func applyDeckPatch(deck *core.Deck, input DeckPatchInput) error {
+	if input.Name != nil {
+		name := strings.TrimSpace(*input.Name)
+		if name == "" {
+			return fmt.Errorf("deck name cannot be empty")
+		}
+		deck.Name = name
+	}
+	if input.Description != nil {
+		deck.Description = strings.TrimSpace(*input.Description)
+	}
+	return nil
 }
 
 func (service *StudyService) cardFromInput(ctx context.Context, userID string, input CardInput) (core.Card, error) {

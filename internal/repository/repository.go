@@ -18,6 +18,7 @@ type DeckRepository interface {
 	FindDeckByID(ctx context.Context, userID string, id string) (core.Deck, error)
 	CreateDeck(ctx context.Context, deck core.Deck) error
 	UpdateDeck(ctx context.Context, userID string, deck core.Deck) error
+	UpdateDecks(ctx context.Context, userID string, decks []core.Deck) error
 	DeleteDeck(ctx context.Context, userID string, id string) error
 	DeleteDecks(ctx context.Context, userID string, ids []string) (int, error)
 }
@@ -28,13 +29,15 @@ type CardRepository interface {
 	ListDueCards(ctx context.Context, userID string, now time.Time) ([]core.Card, error)
 	FindCardByID(ctx context.Context, userID string, id string) (core.Card, error)
 	CreateCard(ctx context.Context, card core.Card) error
+	CreateCards(ctx context.Context, userID string, cards []core.Card) error
 	UpdateCard(ctx context.Context, userID string, card core.Card) error
+	UpdateCards(ctx context.Context, userID string, cards []core.Card) error
 	DeleteCard(ctx context.Context, userID string, id string) error
 	DeleteCards(ctx context.Context, userID string, ids []string) (int, error)
 }
 
 type ReviewRepository interface {
-	CreateReview(ctx context.Context, review core.Review) error
+	SaveReview(ctx context.Context, userID string, card core.Card, review core.Review) error
 	ListReviewsSince(ctx context.Context, userID string, since time.Time) ([]core.Review, error)
 }
 
@@ -54,6 +57,10 @@ type JournalRepository interface {
 
 type UserDataSeeder interface {
 	SeedUser(ctx context.Context, userID string) error
+}
+
+type UserRegistrationRepository interface {
+	CreateUserWithSeed(ctx context.Context, user domain.User) error
 }
 
 type ResetResult struct {

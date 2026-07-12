@@ -1,0 +1,125 @@
+package api
+
+import (
+	"errors"
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+
+	"github.com/arthurblanchet59/korean-learning-go/internal/repository"
+	"github.com/arthurblanchet59/korean-learning-go/internal/service"
+)
+
+func (handler *Handler) register(ctx *gin.Context) {
+	var payload registerRequest
+	if err := ctx.ShouldBindJSON(&payload); err != nil {
+		writeError(ctx, http.StatusBadRequest, err)
+		return
+	}
+
+	result, err := handler.auth.Register(ctx.Request.Context(), service.RegisterInput{
+		Name:     payload.Name,
+		Email:    payload.Email,
+		Password: payload.Password,
+	})
+	if err != nil {
+		status := http.StatusBadRequest
+		if errors.Is(err, repository.ErrConflict) {
+			status = http.StatusConflict
+		}
+		writeError(ctx, status, err)
+		return
+	}
+
+	ctx.JSON(http.StatusCreated, result)
+}
+
+func (handler *Handler) login(ctx *gin.Context) {
+	var payload loginRequest
+	if err := ctx.ShouldBindJSON(&payload); err != nil {
+		writeError(ctx, http.StatusBadRequest, err)
+		return
+	}
+
+	result, err := handler.auth.Login(ctx.Request.Context(), service.LoginInput{
+		Email:    payload.Email,
+		Password: payload.Password,
+	})
+	if err != nil {
+		status := http.StatusBadRequest
+		if errors.Is(err, service.ErrInvalidCredentials) {
+			status = http.StatusUnauthorized
+		}
+		writeError(ctx, status, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, result)
+}
+
+func (handler *Handler) me(ctx *gin.Context) {
+	user, err := handler.auth.UserByID(ctx.Request.Context(), currentUserID(ctx))
+	if err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, repository.ErrNotFound) {
+			status = http.StatusNotFound
+		}
+		writeError(ctx, status, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, user)
+}
+
+func (handler *Handler) updateMe(ctx *gin.Context) {
+	var payload updateUserRequest
+	if err := ctx.ShouldBindJSON(&payload); err != nil {
+		writeError(ctx, http.StatusBadRequest, err)
+		return
+	}
+
+	user, err := handler.auth.UpdateSelf(ctx.Request.Context(), currentUserID(ctx), service.UpdateUserInput{
+		Name:     payload.Name,
+		Email:    payload.Email,
+		Password: payload.Password,
+	})
+	if err != nil {
+		writeAuthError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, user)
+}
+
+func (handler *Handler) adminUpdateUser(ctx *gin.Context) {
+	var payload updateUserRequest
+	if err := ctx.ShouldBindJSON(&payload); err != nil {
+		writeError(ctx, http.StatusBadRequest, err)
+		return
+	}
+
+	user, err := handler.auth.AdminUpdateUser(ctx.Request.Context(), ctx.Param("id"), service.UpdateUserInput{
+		Name:     payload.Name,
+		Email:    payload.Email,
+		Password: payload.Password,
+	})
+	if err != nil {
+		writeAuthError(ctx, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, user)
+}
+
+func (handler *Handler) resetDatabase(ctx *gin.Context) {
+	result, err := handler.admin.ResetDatabase(ctx.Request.Context())
+	if err != nil {
+		writeError(ctx, http.StatusInternalServerError, err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"message": "database reset completed",
+		"result":  result,
+	})
+}

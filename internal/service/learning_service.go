@@ -104,7 +104,7 @@ func (service *StudyService) ImportCardsCSV(ctx context.Context, userID string, 
 		if kind == "" {
 			kind = string(core.CardKindVocabulary)
 		}
-		card, err := service.CreateCard(ctx, userID, CardInput{
+		card, err := service.cardFromInput(ctx, userID, CardInput{
 			DeckID:             deckID,
 			Kind:               core.CardKind(kind),
 			Korean:             value(record, "korean"),
@@ -117,7 +117,14 @@ func (service *StudyService) ImportCardsCSV(ctx context.Context, userID string, 
 		if err != nil {
 			return nil, fmt.Errorf("csv row %d: %w", rowIndex+2, err)
 		}
+		card.ID = uuid.NewString()
+		card.UserID = userID
+		card.CreatedAt = service.now()
+		card.ReviewState = core.NewState(service.now())
 		created = append(created, card)
+	}
+	if err := service.cards.CreateCards(ctx, userID, created); err != nil {
+		return nil, err
 	}
 	return created, nil
 }

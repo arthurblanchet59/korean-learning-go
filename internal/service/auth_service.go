@@ -83,10 +83,13 @@ func (service *AuthService) Register(ctx context.Context, input RegisterInput) (
 		UpdatedAt:    now,
 	}
 
-	if err := service.users.CreateUser(ctx, user); err != nil {
+	if registration, ok := service.users.(repository.UserRegistrationRepository); ok {
+		if err := registration.CreateUserWithSeed(ctx, user); err != nil {
+			return AuthResult{}, err
+		}
+	} else if err := service.users.CreateUser(ctx, user); err != nil {
 		return AuthResult{}, err
-	}
-	if seeder, ok := service.users.(repository.UserDataSeeder); ok {
+	} else if seeder, ok := service.users.(repository.UserDataSeeder); ok {
 		if err := seeder.SeedUser(ctx, user.ID); err != nil {
 			return AuthResult{}, fmt.Errorf("seed user study data: %w", err)
 		}
