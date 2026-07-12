@@ -13,35 +13,56 @@ var ErrNotFound = errors.New("resource not found")
 var ErrConflict = errors.New("resource already exists")
 
 type DeckRepository interface {
-	ListDecks(ctx context.Context) ([]core.Deck, error)
-	SearchDecks(ctx context.Context, query string) ([]core.Deck, error)
-	FindDeckByID(ctx context.Context, id string) (core.Deck, error)
+	ListDecks(ctx context.Context, userID string) ([]core.Deck, error)
+	SearchDecks(ctx context.Context, userID string, query string) ([]core.Deck, error)
+	FindDeckByID(ctx context.Context, userID string, id string) (core.Deck, error)
 	CreateDeck(ctx context.Context, deck core.Deck) error
-	UpdateDeck(ctx context.Context, deck core.Deck) error
-	DeleteDeck(ctx context.Context, id string) error
-	DeleteDecks(ctx context.Context, ids []string) (int, error)
+	UpdateDeck(ctx context.Context, userID string, deck core.Deck) error
+	DeleteDeck(ctx context.Context, userID string, id string) error
+	DeleteDecks(ctx context.Context, userID string, ids []string) (int, error)
 }
 
 type CardRepository interface {
-	ListCards(ctx context.Context) ([]core.Card, error)
-	SearchCards(ctx context.Context, query string) ([]core.Card, error)
-	ListDueCards(ctx context.Context, now time.Time) ([]core.Card, error)
-	FindCardByID(ctx context.Context, id string) (core.Card, error)
+	ListCards(ctx context.Context, userID string) ([]core.Card, error)
+	SearchCards(ctx context.Context, userID string, query string) ([]core.Card, error)
+	ListDueCards(ctx context.Context, userID string, now time.Time) ([]core.Card, error)
+	FindCardByID(ctx context.Context, userID string, id string) (core.Card, error)
 	CreateCard(ctx context.Context, card core.Card) error
-	UpdateCard(ctx context.Context, card core.Card) error
-	DeleteCard(ctx context.Context, id string) error
-	DeleteCards(ctx context.Context, ids []string) (int, error)
+	UpdateCard(ctx context.Context, userID string, card core.Card) error
+	DeleteCard(ctx context.Context, userID string, id string) error
+	DeleteCards(ctx context.Context, userID string, ids []string) (int, error)
 }
 
 type ReviewRepository interface {
 	CreateReview(ctx context.Context, review core.Review) error
+	ListReviewsSince(ctx context.Context, userID string, since time.Time) ([]core.Review, error)
+}
+
+type LessonRepository interface {
+	ListLessons(ctx context.Context, userID string) ([]core.Lesson, []core.LessonProgress, error)
+	FindLessonByID(ctx context.Context, userID string, id string) (core.Lesson, core.LessonProgress, error)
+	UpsertLessonProgress(ctx context.Context, progress core.LessonProgress) error
+}
+
+type JournalRepository interface {
+	ListJournalEntries(ctx context.Context, userID string) ([]core.JournalEntry, error)
+	FindJournalEntryByID(ctx context.Context, userID string, id string) (core.JournalEntry, error)
+	CreateJournalEntry(ctx context.Context, entry core.JournalEntry) error
+	UpdateJournalEntry(ctx context.Context, entry core.JournalEntry) error
+	DeleteJournalEntry(ctx context.Context, userID string, id string) error
+}
+
+type UserDataSeeder interface {
+	SeedUser(ctx context.Context, userID string) error
 }
 
 type ResetResult struct {
-	DeletedReviews int `json:"deletedReviews"`
-	DeletedCards   int `json:"deletedCards"`
-	DeletedDecks   int `json:"deletedDecks"`
-	DeletedUsers   int `json:"deletedUsers"`
+	DeletedReviews  int `json:"deletedReviews"`
+	DeletedCards    int `json:"deletedCards"`
+	DeletedDecks    int `json:"deletedDecks"`
+	DeletedUsers    int `json:"deletedUsers"`
+	DeletedJournal  int `json:"deletedJournal"`
+	DeletedProgress int `json:"deletedProgress"`
 }
 
 type AdminRepository interface {

@@ -4,6 +4,7 @@ import "time"
 
 type Review struct {
 	ID         string    `json:"id"`
+	UserID     string    `json:"-"`
 	CardID     string    `json:"cardId"`
 	Rating     Rating    `json:"rating"`
 	ReviewedAt time.Time `json:"reviewedAt"`

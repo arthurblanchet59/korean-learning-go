@@ -22,6 +22,26 @@ type answerRequest struct {
 	Rating string `json:"rating" binding:"required,oneof=again hard good easy"`
 }
 
+type answerCheckRequest struct {
+	Answer    string `json:"answer" binding:"required,max=500"`
+	Direction string `json:"direction" binding:"omitempty,oneof=korean-to-french french-to-korean"`
+}
+
+type importCardsRequest struct {
+	DeckID string `json:"deckId" binding:"required"`
+	CSV    string `json:"csv" binding:"required"`
+}
+
+type lessonProgressRequest struct {
+	Completed bool `json:"completed"`
+	Score     int  `json:"score" binding:"min=0,max=100"`
+}
+
+type journalRequest struct {
+	Title string `json:"title" binding:"max=120"`
+	Text  string `json:"text" binding:"required,min=1,max=10000"`
+}
+
 type deckRequest struct {
 	Name        string `json:"name" binding:"required,min=1,max=120"`
 	Description string `json:"description" binding:"max=500"`
@@ -129,6 +149,8 @@ func NewRouter(study *service.StudyService, auth *service.AuthService, adminServ
 	api.GET("/cards", handler.listCards)
 	api.GET("/cards/search", handler.searchCards)
 	api.POST("/cards", handler.createCard)
+	api.GET("/cards/export", handler.exportCards)
+	api.POST("/cards/import", handler.importCards)
 	api.PUT("/cards/bulk", handler.updateCards)
 	api.DELETE("/cards/bulk", handler.deleteCards)
 	api.GET("/cards/difficult", handler.listDifficultCards)
@@ -138,11 +160,21 @@ func NewRouter(study *service.StudyService, auth *service.AuthService, adminServ
 	api.GET("/reviews/due", handler.listDueCards)
 	api.POST("/reviews/:id/answer", handler.answerCard)
 	api.GET("/stats", handler.stats)
+	api.GET("/lessons", handler.listLessons)
+	api.GET("/lessons/:id", handler.getLesson)
+	api.PUT("/lessons/:id/progress", handler.updateLessonProgress)
+	api.GET("/journal", handler.listJournalEntries)
+	api.POST("/journal", handler.createJournalEntry)
+	api.POST("/journal/correct", handler.correctJournalText)
+	api.GET("/journal/:id", handler.getJournalEntry)
+	api.PUT("/journal/:id", handler.updateJournalEntry)
+	api.DELETE("/journal/:id", handler.deleteJournalEntry)
 
 	studyRoutes := router.Group("/study")
 	studyRoutes.Use(handler.authMiddleware())
 	studyRoutes.GET("/today", handler.listDueCards)
 	studyRoutes.POST("/cards/:id/answer", handler.answerCard)
+	studyRoutes.POST("/cards/:id/check", handler.checkAnswer)
 
 	return router
 }
@@ -266,7 +298,7 @@ func (handler *Handler) resetDatabase(ctx *gin.Context) {
 }
 
 func (handler *Handler) listDecks(ctx *gin.Context) {
-	decks, err := handler.study.ListDecks(ctx.Request.Context())
+	decks, err := handler.study.ListDecks(ctx.Request.Context(), currentUserID(ctx))
 	if err != nil {
 		writeError(ctx, http.StatusInternalServerError, err)
 		return
@@ -276,7 +308,7 @@ func (handler *Handler) listDecks(ctx *gin.Context) {
 }
 
 func (handler *Handler) searchDecks(ctx *gin.Context) {
-	results, err := handler.study.SearchDecks(ctx.Request.Context(), ctx.Query("query"))
+	results, err := handler.study.SearchDecks(ctx.Request.Context(), currentUserID(ctx), ctx.Query("query"))
 	if err != nil {
 		writeError(ctx, http.StatusInternalServerError, err)
 		return
@@ -286,7 +318,7 @@ func (handler *Handler) searchDecks(ctx *gin.Context) {
 }
 
 func (handler *Handler) searchAll(ctx *gin.Context) {
-	results, err := handler.study.SearchAll(ctx.Request.Context(), ctx.Query("query"))
+	results, err := handler.study.SearchAll(ctx.Request.Context(), currentUserID(ctx), ctx.Query("query"))
 	if err != nil {
 		writeError(ctx, http.StatusInternalServerError, err)
 		return
@@ -296,7 +328,7 @@ func (handler *Handler) searchAll(ctx *gin.Context) {
 }
 
 func (handler *Handler) getDeck(ctx *gin.Context) {
-	deck, err := handler.study.DeckByID(ctx.Request.Context(), ctx.Param("id"))
+	deck, err := handler.study.DeckByID(ctx.Request.Context(), currentUserID(ctx), ctx.Param("id"))
 	if err != nil {
 		writeResourceError(ctx, err)
 		return
@@ -312,7 +344,7 @@ func (handler *Handler) createDeck(ctx *gin.Context) {
 		return
 	}
 
-	deck, err := handler.study.CreateDeck(ctx.Request.Context(), service.DeckInput{
+	deck, err := handler.study.CreateDeck(ctx.Request.Context(), currentUserID(ctx), service.DeckInput{
 		Name:        payload.Name,
 		Description: payload.Description,
 	})
@@ -331,7 +363,7 @@ func (handler *Handler) updateDeck(ctx *gin.Context) {
 		return
 	}
 
-	deck, err := handler.study.UpdateDeck(ctx.Request.Context(), ctx.Param("id"), deckPatchInput(payload))
+	deck, err := handler.study.UpdateDeck(ctx.Request.Context(), currentUserID(ctx), ctx.Param("id"), deckPatchInput(payload))
 	if err != nil {
 		writeResourceError(ctx, err)
 		return
@@ -347,7 +379,7 @@ func (handler *Handler) updateDecks(ctx *gin.Context) {
 		return
 	}
 
-	decks, err := handler.study.UpdateDecks(ctx.Request.Context(), payload.IDs, deckPatchInput(payload.Patch))
+	decks, err := handler.study.UpdateDecks(ctx.Request.Context(), currentUserID(ctx), payload.IDs, deckPatchInput(payload.Patch))
 	if err != nil {
 		writeResourceError(ctx, err)
 		return
@@ -357,7 +389,7 @@ func (handler *Handler) updateDecks(ctx *gin.Context) {
 }
 
 func (handler *Handler) deleteDeck(ctx *gin.Context) {
-	if err := handler.study.DeleteDeck(ctx.Request.Context(), ctx.Param("id")); err != nil {
+	if err := handler.study.DeleteDeck(ctx.Request.Context(), currentUserID(ctx), ctx.Param("id")); err != nil {
 		writeResourceError(ctx, err)
 		return
 	}
@@ -372,7 +404,7 @@ func (handler *Handler) deleteDecks(ctx *gin.Context) {
 		return
 	}
 
-	deleted, err := handler.study.DeleteDecks(ctx.Request.Context(), payload.IDs)
+	deleted, err := handler.study.DeleteDecks(ctx.Request.Context(), currentUserID(ctx), payload.IDs)
 	if err != nil {
 		writeResourceError(ctx, err)
 		return
@@ -382,7 +414,7 @@ func (handler *Handler) deleteDecks(ctx *gin.Context) {
 }
 
 func (handler *Handler) listCards(ctx *gin.Context) {
-	cards, err := handler.study.ListCards(ctx.Request.Context())
+	cards, err := handler.study.ListCards(ctx.Request.Context(), currentUserID(ctx))
 	if err != nil {
 		writeError(ctx, http.StatusInternalServerError, err)
 		return
@@ -392,7 +424,7 @@ func (handler *Handler) listCards(ctx *gin.Context) {
 }
 
 func (handler *Handler) searchCards(ctx *gin.Context) {
-	results, err := handler.study.SearchCards(ctx.Request.Context(), ctx.Query("query"))
+	results, err := handler.study.SearchCards(ctx.Request.Context(), currentUserID(ctx), ctx.Query("query"))
 	if err != nil {
 		writeError(ctx, http.StatusInternalServerError, err)
 		return
@@ -402,7 +434,7 @@ func (handler *Handler) searchCards(ctx *gin.Context) {
 }
 
 func (handler *Handler) getCard(ctx *gin.Context) {
-	card, err := handler.study.CardByID(ctx.Request.Context(), ctx.Param("id"))
+	card, err := handler.study.CardByID(ctx.Request.Context(), currentUserID(ctx), ctx.Param("id"))
 	if err != nil {
 		writeResourceError(ctx, err)
 		return
@@ -418,7 +450,7 @@ func (handler *Handler) createCard(ctx *gin.Context) {
 		return
 	}
 
-	card, err := handler.study.CreateCard(ctx.Request.Context(), cardInput(payload))
+	card, err := handler.study.CreateCard(ctx.Request.Context(), currentUserID(ctx), cardInput(payload))
 	if err != nil {
 		writeResourceError(ctx, err)
 		return
@@ -434,7 +466,7 @@ func (handler *Handler) updateCard(ctx *gin.Context) {
 		return
 	}
 
-	card, err := handler.study.UpdateCard(ctx.Request.Context(), ctx.Param("id"), cardPatchInput(payload))
+	card, err := handler.study.UpdateCard(ctx.Request.Context(), currentUserID(ctx), ctx.Param("id"), cardPatchInput(payload))
 	if err != nil {
 		writeResourceError(ctx, err)
 		return
@@ -450,7 +482,7 @@ func (handler *Handler) updateCards(ctx *gin.Context) {
 		return
 	}
 
-	cards, err := handler.study.UpdateCards(ctx.Request.Context(), payload.IDs, cardPatchInput(payload.Patch))
+	cards, err := handler.study.UpdateCards(ctx.Request.Context(), currentUserID(ctx), payload.IDs, cardPatchInput(payload.Patch))
 	if err != nil {
 		writeResourceError(ctx, err)
 		return
@@ -460,7 +492,7 @@ func (handler *Handler) updateCards(ctx *gin.Context) {
 }
 
 func (handler *Handler) deleteCard(ctx *gin.Context) {
-	if err := handler.study.DeleteCard(ctx.Request.Context(), ctx.Param("id")); err != nil {
+	if err := handler.study.DeleteCard(ctx.Request.Context(), currentUserID(ctx), ctx.Param("id")); err != nil {
 		writeResourceError(ctx, err)
 		return
 	}
@@ -475,7 +507,7 @@ func (handler *Handler) deleteCards(ctx *gin.Context) {
 		return
 	}
 
-	deleted, err := handler.study.DeleteCards(ctx.Request.Context(), payload.IDs)
+	deleted, err := handler.study.DeleteCards(ctx.Request.Context(), currentUserID(ctx), payload.IDs)
 	if err != nil {
 		writeResourceError(ctx, err)
 		return
@@ -485,7 +517,7 @@ func (handler *Handler) deleteCards(ctx *gin.Context) {
 }
 
 func (handler *Handler) listDueCards(ctx *gin.Context) {
-	cards, err := handler.study.DueCards(ctx.Request.Context())
+	cards, err := handler.study.DueCards(ctx.Request.Context(), currentUserID(ctx))
 	if err != nil {
 		writeError(ctx, http.StatusInternalServerError, err)
 		return
@@ -495,7 +527,7 @@ func (handler *Handler) listDueCards(ctx *gin.Context) {
 }
 
 func (handler *Handler) listDifficultCards(ctx *gin.Context) {
-	cards, err := handler.study.DifficultCards(ctx.Request.Context())
+	cards, err := handler.study.DifficultCards(ctx.Request.Context(), currentUserID(ctx))
 	if err != nil {
 		writeError(ctx, http.StatusInternalServerError, err)
 		return
@@ -505,7 +537,7 @@ func (handler *Handler) listDifficultCards(ctx *gin.Context) {
 }
 
 func (handler *Handler) stats(ctx *gin.Context) {
-	stats, err := handler.study.Stats(ctx.Request.Context())
+	stats, err := handler.study.Stats(ctx.Request.Context(), currentUserID(ctx))
 	if err != nil {
 		writeError(ctx, http.StatusInternalServerError, err)
 		return
@@ -521,7 +553,7 @@ func (handler *Handler) answerCard(ctx *gin.Context) {
 		return
 	}
 
-	review, err := handler.study.AnswerCard(ctx.Request.Context(), ctx.Param("id"), payload.Rating)
+	review, err := handler.study.AnswerCard(ctx.Request.Context(), currentUserID(ctx), ctx.Param("id"), payload.Rating)
 	if err != nil {
 		status := http.StatusBadRequest
 		if errors.Is(err, repository.ErrNotFound) {
@@ -533,6 +565,141 @@ func (handler *Handler) answerCard(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, review)
+}
+
+func (handler *Handler) checkAnswer(ctx *gin.Context) {
+	var payload answerCheckRequest
+	if err := ctx.ShouldBindJSON(&payload); err != nil {
+		writeError(ctx, http.StatusBadRequest, err)
+		return
+	}
+
+	result, err := handler.study.CheckAnswer(ctx.Request.Context(), currentUserID(ctx), ctx.Param("id"), payload.Answer, payload.Direction)
+	if err != nil {
+		writeResourceError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, result)
+}
+
+func (handler *Handler) exportCards(ctx *gin.Context) {
+	content, err := handler.study.ExportCardsCSV(ctx.Request.Context(), currentUserID(ctx))
+	if err != nil {
+		writeError(ctx, http.StatusInternalServerError, err)
+		return
+	}
+	ctx.Header("Content-Disposition", `attachment; filename="korean-cards.csv"`)
+	ctx.Data(http.StatusOK, "text/csv; charset=utf-8", []byte(content))
+}
+
+func (handler *Handler) importCards(ctx *gin.Context) {
+	var payload importCardsRequest
+	if err := ctx.ShouldBindJSON(&payload); err != nil {
+		writeError(ctx, http.StatusBadRequest, err)
+		return
+	}
+	cards, err := handler.study.ImportCardsCSV(ctx.Request.Context(), currentUserID(ctx), payload.DeckID, payload.CSV)
+	if err != nil {
+		writeResourceError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusCreated, gin.H{"imported": len(cards), "cards": cards})
+}
+
+func (handler *Handler) listLessons(ctx *gin.Context) {
+	lessons, err := handler.study.ListLessons(ctx.Request.Context(), currentUserID(ctx))
+	if err != nil {
+		writeError(ctx, http.StatusInternalServerError, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, lessons)
+}
+
+func (handler *Handler) getLesson(ctx *gin.Context) {
+	lesson, err := handler.study.LessonByID(ctx.Request.Context(), currentUserID(ctx), ctx.Param("id"))
+	if err != nil {
+		writeResourceError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, lesson)
+}
+
+func (handler *Handler) updateLessonProgress(ctx *gin.Context) {
+	var payload lessonProgressRequest
+	if err := ctx.ShouldBindJSON(&payload); err != nil {
+		writeError(ctx, http.StatusBadRequest, err)
+		return
+	}
+	progress, err := handler.study.UpdateLessonProgress(ctx.Request.Context(), currentUserID(ctx), ctx.Param("id"), payload.Completed, payload.Score)
+	if err != nil {
+		writeResourceError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, progress)
+}
+
+func (handler *Handler) listJournalEntries(ctx *gin.Context) {
+	entries, err := handler.study.ListJournalEntries(ctx.Request.Context(), currentUserID(ctx))
+	if err != nil {
+		writeError(ctx, http.StatusInternalServerError, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, entries)
+}
+
+func (handler *Handler) createJournalEntry(ctx *gin.Context) {
+	var payload journalRequest
+	if err := ctx.ShouldBindJSON(&payload); err != nil {
+		writeError(ctx, http.StatusBadRequest, err)
+		return
+	}
+	entry, err := handler.study.CreateJournalEntry(ctx.Request.Context(), currentUserID(ctx), service.JournalInput{Title: payload.Title, Text: payload.Text})
+	if err != nil {
+		writeResourceError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusCreated, entry)
+}
+
+func (handler *Handler) getJournalEntry(ctx *gin.Context) {
+	entry, err := handler.study.JournalEntryByID(ctx.Request.Context(), currentUserID(ctx), ctx.Param("id"))
+	if err != nil {
+		writeResourceError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, entry)
+}
+
+func (handler *Handler) correctJournalText(ctx *gin.Context) {
+	var payload journalRequest
+	if err := ctx.ShouldBindJSON(&payload); err != nil {
+		writeError(ctx, http.StatusBadRequest, err)
+		return
+	}
+	corrected, corrections := service.CorrectKorean(payload.Text)
+	ctx.JSON(http.StatusOK, gin.H{"correctedText": corrected, "corrections": corrections})
+}
+
+func (handler *Handler) updateJournalEntry(ctx *gin.Context) {
+	var payload journalRequest
+	if err := ctx.ShouldBindJSON(&payload); err != nil {
+		writeError(ctx, http.StatusBadRequest, err)
+		return
+	}
+	entry, err := handler.study.UpdateJournalEntry(ctx.Request.Context(), currentUserID(ctx), ctx.Param("id"), service.JournalInput{Title: payload.Title, Text: payload.Text})
+	if err != nil {
+		writeResourceError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, entry)
+}
+
+func (handler *Handler) deleteJournalEntry(ctx *gin.Context) {
+	if err := handler.study.DeleteJournalEntry(ctx.Request.Context(), currentUserID(ctx), ctx.Param("id")); err != nil {
+		writeResourceError(ctx, err)
+		return
+	}
+	ctx.Status(http.StatusNoContent)
 }
 
 func cors() gin.HandlerFunc {

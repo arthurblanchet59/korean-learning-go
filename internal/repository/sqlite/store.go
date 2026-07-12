@@ -46,14 +46,7 @@ func (store *Store) Close() error {
 }
 
 func (store *Store) Migrate() error {
-	_, err := store.db.Exec(`
-		CREATE TABLE IF NOT EXISTS decks (
-			id TEXT PRIMARY KEY,
-			name TEXT NOT NULL,
-			description TEXT NOT NULL DEFAULT '',
-			created_at TEXT NOT NULL
-		);
-
+	if _, err := store.db.Exec(`
 		CREATE TABLE IF NOT EXISTS users (
 			id TEXT PRIMARY KEY,
 			name TEXT NOT NULL,
@@ -62,6 +55,13 @@ func (store *Store) Migrate() error {
 			is_admin INTEGER NOT NULL DEFAULT 0,
 			created_at TEXT NOT NULL,
 			updated_at TEXT NOT NULL
+		);
+
+		CREATE TABLE IF NOT EXISTS decks (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			description TEXT NOT NULL DEFAULT '',
+			created_at TEXT NOT NULL
 		);
 
 		CREATE TABLE IF NOT EXISTS cards (
@@ -83,9 +83,6 @@ func (store *Store) Migrate() error {
 			lapse_count INTEGER NOT NULL DEFAULT 0
 		);
 
-		CREATE INDEX IF NOT EXISTS cards_deck_id_idx ON cards(deck_id);
-		CREATE INDEX IF NOT EXISTS cards_next_review_at_idx ON cards(next_review_at);
-
 		CREATE TABLE IF NOT EXISTS reviews (
 			id TEXT PRIMARY KEY,
 			card_id TEXT NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
@@ -95,15 +92,75 @@ func (store *Store) Migrate() error {
 			next_state TEXT NOT NULL
 		);
 
+		CREATE TABLE IF NOT EXISTS lessons (
+			id TEXT PRIMARY KEY,
+			title TEXT NOT NULL,
+			description TEXT NOT NULL DEFAULT '',
+			level TEXT NOT NULL,
+			sort_order INTEGER NOT NULL,
+			content TEXT NOT NULL
+		);
+
+		CREATE TABLE IF NOT EXISTS lesson_progress (
+			user_id TEXT NOT NULL,
+			lesson_id TEXT NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+			completed INTEGER NOT NULL DEFAULT 0,
+			score INTEGER NOT NULL DEFAULT 0,
+			updated_at TEXT NOT NULL,
+			PRIMARY KEY (user_id, lesson_id)
+		);
+
+		CREATE TABLE IF NOT EXISTS journal_entries (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL,
+			title TEXT NOT NULL,
+			original_text TEXT NOT NULL,
+			corrected_text TEXT NOT NULL,
+			corrections TEXT NOT NULL DEFAULT '[]',
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		);
+	`); err != nil {
+		return err
+	}
+
+	for _, migration := range []struct {
+		table      string
+		column     string
+		definition string
+	}{
+		{"decks", "user_id", "TEXT NOT NULL DEFAULT 'admin'"},
+		{"cards", "user_id", "TEXT NOT NULL DEFAULT 'admin'"},
+		{"reviews", "user_id", "TEXT NOT NULL DEFAULT 'admin'"},
+	} {
+		if err := store.ensureColumn(migration.table, migration.column, migration.definition); err != nil {
+			return err
+		}
+	}
+
+	if _, err := store.db.Exec(`
+		CREATE INDEX IF NOT EXISTS decks_user_id_idx ON decks(user_id);
+		CREATE INDEX IF NOT EXISTS cards_user_id_idx ON cards(user_id);
+		CREATE INDEX IF NOT EXISTS cards_deck_id_idx ON cards(deck_id);
+		CREATE INDEX IF NOT EXISTS cards_next_review_at_idx ON cards(next_review_at);
+		CREATE INDEX IF NOT EXISTS reviews_user_id_idx ON reviews(user_id);
 		CREATE INDEX IF NOT EXISTS reviews_card_id_idx ON reviews(card_id);
 		CREATE INDEX IF NOT EXISTS reviews_reviewed_at_idx ON reviews(reviewed_at);
-	`)
-	return err
+		CREATE INDEX IF NOT EXISTS journal_user_id_idx ON journal_entries(user_id);
+	`); err != nil {
+		return err
+	}
+
+	return store.seedLessons()
 }
 
 func (store *Store) SeedIfEmpty() error {
+	return store.SeedUser(context.Background(), "admin")
+}
+
+func (store *Store) SeedUser(ctx context.Context, userID string) error {
 	var count int
-	if err := store.db.QueryRow(`SELECT COUNT(*) FROM decks`).Scan(&count); err != nil {
+	if err := store.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM decks WHERE user_id = ?`, userID).Scan(&count); err != nil {
 		return err
 	}
 	if count > 0 {
@@ -111,27 +168,59 @@ func (store *Store) SeedIfEmpty() error {
 	}
 
 	now := time.Now().UTC()
-	tx, err := store.db.Begin()
+	tx, err := store.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer rollback(tx)
 
 	deck := core.SeedDeck(now)
+	deck.ID = userID + "-starter"
+	deck.UserID = userID
 	if _, err := tx.Exec(`
-		INSERT INTO decks (id, name, description, created_at)
-		VALUES (?, ?, ?, ?)
-	`, deck.ID, deck.Name, deck.Description, formatTime(deck.CreatedAt)); err != nil {
+		INSERT INTO decks (id, user_id, name, description, created_at)
+		VALUES (?, ?, ?, ?, ?)
+	`, deck.ID, deck.UserID, deck.Name, deck.Description, formatTime(deck.CreatedAt)); err != nil {
 		return err
 	}
 
-	for _, card := range core.SeedCards(now) {
+	for index, card := range core.SeedCards(now) {
+		card.ID = fmt.Sprintf("%s-starter-%d", userID, index+1)
+		card.UserID = userID
+		card.DeckID = deck.ID
 		if err := insertCard(tx, card); err != nil {
 			return err
 		}
 	}
 
 	return tx.Commit()
+}
+
+func (store *Store) ensureColumn(table string, column string, definition string) error {
+	rows, err := store.db.Query(`PRAGMA table_info(` + table + `)`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var cid int
+		var name, dataType string
+		var notNull, primaryKey int
+		var defaultValue any
+		if err := rows.Scan(&cid, &name, &dataType, &notNull, &defaultValue, &primaryKey); err != nil {
+			return err
+		}
+		if name == column {
+			return nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	_, err = store.db.Exec(`ALTER TABLE ` + table + ` ADD COLUMN ` + column + ` ` + definition)
+	return err
 }
 
 func (store *Store) EnsureAdmin(ctx context.Context, user domain.User) error {
@@ -210,12 +299,13 @@ func (store *Store) UpdateUser(ctx context.Context, user domain.User) error {
 	return nil
 }
 
-func (store *Store) ListDecks(ctx context.Context) ([]core.Deck, error) {
+func (store *Store) ListDecks(ctx context.Context, userID string) ([]core.Deck, error) {
 	rows, err := store.db.QueryContext(ctx, `
-		SELECT id, name, description, created_at
+		SELECT id, user_id, name, description, created_at
 		FROM decks
+		WHERE user_id = ?
 		ORDER BY created_at ASC, name ASC
-	`)
+	`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -225,7 +315,7 @@ func (store *Store) ListDecks(ctx context.Context) ([]core.Deck, error) {
 	for rows.Next() {
 		var deck core.Deck
 		var createdAt string
-		if err := rows.Scan(&deck.ID, &deck.Name, &deck.Description, &createdAt); err != nil {
+		if err := rows.Scan(&deck.ID, &deck.UserID, &deck.Name, &deck.Description, &createdAt); err != nil {
 			return nil, err
 		}
 		deck.CreatedAt = parseTime(createdAt)
@@ -235,17 +325,18 @@ func (store *Store) ListDecks(ctx context.Context) ([]core.Deck, error) {
 	return decks, rows.Err()
 }
 
-func (store *Store) SearchDecks(ctx context.Context, query string) ([]core.Deck, error) {
+func (store *Store) SearchDecks(ctx context.Context, userID string, query string) ([]core.Deck, error) {
 	query = "%" + strings.ToLower(strings.TrimSpace(query)) + "%"
 	rows, err := store.db.QueryContext(ctx, `
-		SELECT id, name, description, created_at
+		SELECT id, user_id, name, description, created_at
 		FROM decks
-		WHERE lower(id) LIKE ?
+		WHERE user_id = ? AND (
+			lower(id) LIKE ?
 			OR lower(name) LIKE ?
 			OR lower(description) LIKE ?
-			OR lower(created_at) LIKE ?
+			OR lower(created_at) LIKE ?)
 		ORDER BY created_at ASC, name ASC
-	`, query, query, query, query)
+	`, userID, query, query, query, query)
 	if err != nil {
 		return nil, err
 	}
@@ -254,12 +345,12 @@ func (store *Store) SearchDecks(ctx context.Context, query string) ([]core.Deck,
 	return scanDecks(rows)
 }
 
-func (store *Store) FindDeckByID(ctx context.Context, id string) (core.Deck, error) {
+func (store *Store) FindDeckByID(ctx context.Context, userID string, id string) (core.Deck, error) {
 	row := store.db.QueryRowContext(ctx, `
-		SELECT id, name, description, created_at
+		SELECT id, user_id, name, description, created_at
 		FROM decks
-		WHERE id = ?
-	`, id)
+		WHERE id = ? AND user_id = ?
+	`, id, userID)
 
 	deck, err := scanDeck(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -270,19 +361,19 @@ func (store *Store) FindDeckByID(ctx context.Context, id string) (core.Deck, err
 
 func (store *Store) CreateDeck(ctx context.Context, deck core.Deck) error {
 	_, err := store.db.ExecContext(ctx, `
-		INSERT INTO decks (id, name, description, created_at)
-		VALUES (?, ?, ?, ?)
-	`, deck.ID, deck.Name, deck.Description, formatTime(deck.CreatedAt))
+		INSERT INTO decks (id, user_id, name, description, created_at)
+		VALUES (?, ?, ?, ?, ?)
+	`, deck.ID, deck.UserID, deck.Name, deck.Description, formatTime(deck.CreatedAt))
 	return normalizeSQLiteError(err)
 }
 
-func (store *Store) UpdateDeck(ctx context.Context, deck core.Deck) error {
+func (store *Store) UpdateDeck(ctx context.Context, userID string, deck core.Deck) error {
 	result, err := store.db.ExecContext(ctx, `
 		UPDATE decks
 		SET name = ?,
 			description = ?
-		WHERE id = ?
-	`, deck.Name, deck.Description, deck.ID)
+		WHERE id = ? AND user_id = ?
+	`, deck.Name, deck.Description, deck.ID, userID)
 	if err != nil {
 		return normalizeSQLiteError(err)
 	}
@@ -298,8 +389,8 @@ func (store *Store) UpdateDeck(ctx context.Context, deck core.Deck) error {
 	return nil
 }
 
-func (store *Store) DeleteDeck(ctx context.Context, id string) error {
-	result, err := store.db.ExecContext(ctx, `DELETE FROM decks WHERE id = ?`, id)
+func (store *Store) DeleteDeck(ctx context.Context, userID string, id string) error {
+	result, err := store.db.ExecContext(ctx, `DELETE FROM decks WHERE id = ? AND user_id = ?`, id, userID)
 	if err != nil {
 		return err
 	}
@@ -313,8 +404,9 @@ func (store *Store) DeleteDeck(ctx context.Context, id string) error {
 	return nil
 }
 
-func (store *Store) DeleteDecks(ctx context.Context, ids []string) (int, error) {
-	query, args := inQuery(`DELETE FROM decks WHERE id IN `, ids)
+func (store *Store) DeleteDecks(ctx context.Context, userID string, ids []string) (int, error) {
+	query, args := inQuery(`DELETE FROM decks WHERE user_id = ? AND id IN `, ids)
+	args = append([]any{userID}, args...)
 	result, err := store.db.ExecContext(ctx, query, args...)
 	if err != nil {
 		return 0, err
@@ -323,10 +415,11 @@ func (store *Store) DeleteDecks(ctx context.Context, ids []string) (int, error) 
 	return int(affected), err
 }
 
-func (store *Store) ListCards(ctx context.Context) ([]core.Card, error) {
+func (store *Store) ListCards(ctx context.Context, userID string) ([]core.Card, error) {
 	rows, err := store.db.QueryContext(ctx, cardSelectSQL()+`
+		WHERE user_id = ?
 		ORDER BY created_at ASC, korean ASC
-	`)
+	`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -335,10 +428,11 @@ func (store *Store) ListCards(ctx context.Context) ([]core.Card, error) {
 	return scanCards(rows)
 }
 
-func (store *Store) SearchCards(ctx context.Context, query string) ([]core.Card, error) {
+func (store *Store) SearchCards(ctx context.Context, userID string, query string) ([]core.Card, error) {
 	query = "%" + strings.ToLower(strings.TrimSpace(query)) + "%"
 	rows, err := store.db.QueryContext(ctx, cardSelectSQL()+`
-		WHERE lower(id) LIKE ?
+		WHERE user_id = ? AND (
+			lower(id) LIKE ?
 			OR lower(deck_id) LIKE ?
 			OR lower(kind) LIKE ?
 			OR lower(korean) LIKE ?
@@ -353,9 +447,9 @@ func (store *Store) SearchCards(ctx context.Context, query string) ([]core.Card,
 			OR CAST(interval_days AS TEXT) LIKE ?
 			OR CAST(ease_factor AS TEXT) LIKE ?
 			OR CAST(review_count AS TEXT) LIKE ?
-			OR CAST(lapse_count AS TEXT) LIKE ?
+			OR CAST(lapse_count AS TEXT) LIKE ?)
 		ORDER BY created_at ASC, korean ASC
-	`, query, query, query, query, query, query, query, query, query, query, query, query, query, query, query, query)
+	`, userID, query, query, query, query, query, query, query, query, query, query, query, query, query, query, query, query)
 	if err != nil {
 		return nil, err
 	}
@@ -364,11 +458,11 @@ func (store *Store) SearchCards(ctx context.Context, query string) ([]core.Card,
 	return scanCards(rows)
 }
 
-func (store *Store) ListDueCards(ctx context.Context, now time.Time) ([]core.Card, error) {
+func (store *Store) ListDueCards(ctx context.Context, userID string, now time.Time) ([]core.Card, error) {
 	rows, err := store.db.QueryContext(ctx, cardSelectSQL()+`
-		WHERE next_review_at <= ?
+		WHERE user_id = ? AND next_review_at <= ?
 		ORDER BY next_review_at ASC, created_at ASC
-	`, formatTime(now))
+	`, userID, formatTime(now))
 	if err != nil {
 		return nil, err
 	}
@@ -377,10 +471,10 @@ func (store *Store) ListDueCards(ctx context.Context, now time.Time) ([]core.Car
 	return scanCards(rows)
 }
 
-func (store *Store) FindCardByID(ctx context.Context, id string) (core.Card, error) {
+func (store *Store) FindCardByID(ctx context.Context, userID string, id string) (core.Card, error) {
 	row := store.db.QueryRowContext(ctx, cardSelectSQL()+`
-		WHERE id = ?
-	`, id)
+		WHERE id = ? AND user_id = ?
+	`, id, userID)
 
 	card, err := scanCard(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -398,13 +492,13 @@ func (store *Store) CreateCard(ctx context.Context, card core.Card) error {
 
 	_, err = store.db.ExecContext(ctx, `
 		INSERT INTO cards (
-			id, deck_id, kind, korean, translation, romanization,
+			id, user_id, deck_id, kind, korean, translation, romanization,
 			example_korean, example_translation, tags, created_at,
 			next_review_at, last_review_at, interval_days, ease_factor,
 			review_count, lapse_count
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, card.ID, card.DeckID, card.Kind, card.Korean, card.Translation, card.Romanization,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, card.ID, card.UserID, card.DeckID, card.Kind, card.Korean, card.Translation, card.Romanization,
 		card.ExampleKorean, card.ExampleTranslation, string(tagsJSON), formatTime(card.CreatedAt),
 		formatTime(card.ReviewState.NextReviewAt), nullableTime(card.ReviewState.LastReviewAt),
 		card.ReviewState.IntervalDays, card.ReviewState.EaseFactor,
@@ -412,7 +506,7 @@ func (store *Store) CreateCard(ctx context.Context, card core.Card) error {
 	return normalizeSQLiteError(err)
 }
 
-func (store *Store) UpdateCard(ctx context.Context, card core.Card) error {
+func (store *Store) UpdateCard(ctx context.Context, userID string, card core.Card) error {
 	tagsJSON, err := json.Marshal(card.Tags)
 	if err != nil {
 		return err
@@ -435,12 +529,12 @@ func (store *Store) UpdateCard(ctx context.Context, card core.Card) error {
 			ease_factor = ?,
 			review_count = ?,
 			lapse_count = ?
-		WHERE id = ?
+		WHERE id = ? AND user_id = ?
 	`, card.DeckID, card.Kind, card.Korean, card.Translation, card.Romanization,
 		card.ExampleKorean, card.ExampleTranslation, string(tagsJSON), formatTime(card.CreatedAt),
 		formatTime(card.ReviewState.NextReviewAt), nullableTime(card.ReviewState.LastReviewAt),
 		card.ReviewState.IntervalDays, card.ReviewState.EaseFactor,
-		card.ReviewState.ReviewCount, card.ReviewState.LapseCount, card.ID)
+		card.ReviewState.ReviewCount, card.ReviewState.LapseCount, card.ID, userID)
 	if err != nil {
 		return err
 	}
@@ -456,8 +550,8 @@ func (store *Store) UpdateCard(ctx context.Context, card core.Card) error {
 	return nil
 }
 
-func (store *Store) DeleteCard(ctx context.Context, id string) error {
-	result, err := store.db.ExecContext(ctx, `DELETE FROM cards WHERE id = ?`, id)
+func (store *Store) DeleteCard(ctx context.Context, userID string, id string) error {
+	result, err := store.db.ExecContext(ctx, `DELETE FROM cards WHERE id = ? AND user_id = ?`, id, userID)
 	if err != nil {
 		return err
 	}
@@ -471,8 +565,9 @@ func (store *Store) DeleteCard(ctx context.Context, id string) error {
 	return nil
 }
 
-func (store *Store) DeleteCards(ctx context.Context, ids []string) (int, error) {
-	query, args := inQuery(`DELETE FROM cards WHERE id IN `, ids)
+func (store *Store) DeleteCards(ctx context.Context, userID string, ids []string) (int, error) {
+	query, args := inQuery(`DELETE FROM cards WHERE user_id = ? AND id IN `, ids)
+	args = append([]any{userID}, args...)
 	result, err := store.db.ExecContext(ctx, query, args...)
 	if err != nil {
 		return 0, err
@@ -492,9 +587,9 @@ func (store *Store) CreateReview(ctx context.Context, review core.Review) error 
 	}
 
 	_, err = store.db.ExecContext(ctx, `
-		INSERT INTO reviews (id, card_id, rating, reviewed_at, previous_state, next_state)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, review.ID, review.CardID, review.Rating, formatTime(review.ReviewedAt), string(previousJSON), string(nextJSON))
+		INSERT INTO reviews (id, user_id, card_id, rating, reviewed_at, previous_state, next_state)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, review.ID, review.UserID, review.CardID, review.Rating, formatTime(review.ReviewedAt), string(previousJSON), string(nextJSON))
 	return err
 }
 
@@ -517,6 +612,12 @@ func (store *Store) Reset(ctx context.Context) (repository.ResetResult, error) {
 	if result.DeletedDecks, resetErr = execDelete(ctx, tx, `DELETE FROM decks`); resetErr != nil {
 		return repository.ResetResult{}, resetErr
 	}
+	if result.DeletedJournal, resetErr = execDelete(ctx, tx, `DELETE FROM journal_entries`); resetErr != nil {
+		return repository.ResetResult{}, resetErr
+	}
+	if result.DeletedProgress, resetErr = execDelete(ctx, tx, `DELETE FROM lesson_progress`); resetErr != nil {
+		return repository.ResetResult{}, resetErr
+	}
 	if result.DeletedUsers, resetErr = execDelete(ctx, tx, `DELETE FROM users WHERE is_admin = 0`); resetErr != nil {
 		return repository.ResetResult{}, resetErr
 	}
@@ -536,13 +637,13 @@ func insertCard(tx *sql.Tx, card core.Card) error {
 
 	_, err = tx.Exec(`
 		INSERT INTO cards (
-			id, deck_id, kind, korean, translation, romanization,
+			id, user_id, deck_id, kind, korean, translation, romanization,
 			example_korean, example_translation, tags, created_at,
 			next_review_at, last_review_at, interval_days, ease_factor,
 			review_count, lapse_count
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, card.ID, card.DeckID, card.Kind, card.Korean, card.Translation, card.Romanization,
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, card.ID, card.UserID, card.DeckID, card.Kind, card.Korean, card.Translation, card.Romanization,
 		card.ExampleKorean, card.ExampleTranslation, string(tagsJSON), formatTime(card.CreatedAt),
 		formatTime(card.ReviewState.NextReviewAt), nullableTime(card.ReviewState.LastReviewAt),
 		card.ReviewState.IntervalDays, card.ReviewState.EaseFactor,
@@ -553,7 +654,7 @@ func insertCard(tx *sql.Tx, card core.Card) error {
 func cardSelectSQL() string {
 	return `
 		SELECT
-			id, deck_id, kind, korean, translation, romanization,
+			id, user_id, deck_id, kind, korean, translation, romanization,
 			example_korean, example_translation, tags, created_at,
 			next_review_at, last_review_at, interval_days, ease_factor,
 			review_count, lapse_count
@@ -581,7 +682,7 @@ func scanDecks(rows *sql.Rows) ([]core.Deck, error) {
 func scanDeck(scanner rowScanner) (core.Deck, error) {
 	var deck core.Deck
 	var createdAt string
-	err := scanner.Scan(&deck.ID, &deck.Name, &deck.Description, &createdAt)
+	err := scanner.Scan(&deck.ID, &deck.UserID, &deck.Name, &deck.Description, &createdAt)
 	if err != nil {
 		return core.Deck{}, err
 	}
@@ -613,6 +714,7 @@ func scanCard(scanner rowScanner) (core.Card, error) {
 
 	err := scanner.Scan(
 		&card.ID,
+		&card.UserID,
 		&card.DeckID,
 		&kind,
 		&card.Korean,

@@ -38,7 +38,7 @@ func main() {
 		}
 	}
 
-	studyService := service.NewStudyService(store, store, store, core.NewScheduler())
+	studyService := service.NewStudyService(store, store, store, store, store, core.NewScheduler())
 	authService := service.NewAuthService(store, cfg.JWTSecret)
 	adminService := service.NewAdminService(store)
 	if err := authService.EnsureAdmin(

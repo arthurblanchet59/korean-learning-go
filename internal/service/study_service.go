@@ -16,6 +16,8 @@ type StudyService struct {
 	decks     repository.DeckRepository
 	cards     repository.CardRepository
 	reviews   repository.ReviewRepository
+	lessons   repository.LessonRepository
+	journal   repository.JournalRepository
 	scheduler core.Scheduler
 	now       func() time.Time
 }
@@ -57,31 +59,33 @@ type SearchResult struct {
 	Cards []core.Card `json:"cards"`
 }
 
-func NewStudyService(decks repository.DeckRepository, cards repository.CardRepository, reviews repository.ReviewRepository, scheduler core.Scheduler) *StudyService {
+func NewStudyService(decks repository.DeckRepository, cards repository.CardRepository, reviews repository.ReviewRepository, lessons repository.LessonRepository, journal repository.JournalRepository, scheduler core.Scheduler) *StudyService {
 	return &StudyService{
 		decks:     decks,
 		cards:     cards,
 		reviews:   reviews,
+		lessons:   lessons,
+		journal:   journal,
 		scheduler: scheduler,
 		now:       func() time.Time { return time.Now().UTC() },
 	}
 }
 
-func (service *StudyService) ListDecks(ctx context.Context) ([]core.Deck, error) {
-	return service.decks.ListDecks(ctx)
+func (service *StudyService) ListDecks(ctx context.Context, userID string) ([]core.Deck, error) {
+	return service.decks.ListDecks(ctx, userID)
 }
 
-func (service *StudyService) SearchDecks(ctx context.Context, query string) ([]core.Deck, error) {
-	return service.decks.SearchDecks(ctx, strings.TrimSpace(query))
+func (service *StudyService) SearchDecks(ctx context.Context, userID string, query string) ([]core.Deck, error) {
+	return service.decks.SearchDecks(ctx, userID, strings.TrimSpace(query))
 }
 
-func (service *StudyService) SearchAll(ctx context.Context, query string) (SearchResult, error) {
-	decks, err := service.SearchDecks(ctx, query)
+func (service *StudyService) SearchAll(ctx context.Context, userID string, query string) (SearchResult, error) {
+	decks, err := service.SearchDecks(ctx, userID, query)
 	if err != nil {
 		return SearchResult{}, err
 	}
 
-	cards, err := service.SearchCards(ctx, query)
+	cards, err := service.SearchCards(ctx, userID, query)
 	if err != nil {
 		return SearchResult{}, err
 	}
@@ -89,11 +93,11 @@ func (service *StudyService) SearchAll(ctx context.Context, query string) (Searc
 	return SearchResult{Decks: decks, Cards: cards}, nil
 }
 
-func (service *StudyService) DeckByID(ctx context.Context, id string) (core.Deck, error) {
-	return service.decks.FindDeckByID(ctx, strings.TrimSpace(id))
+func (service *StudyService) DeckByID(ctx context.Context, userID string, id string) (core.Deck, error) {
+	return service.decks.FindDeckByID(ctx, userID, strings.TrimSpace(id))
 }
 
-func (service *StudyService) CreateDeck(ctx context.Context, input DeckInput) (core.Deck, error) {
+func (service *StudyService) CreateDeck(ctx context.Context, userID string, input DeckInput) (core.Deck, error) {
 	name := strings.TrimSpace(input.Name)
 	if name == "" {
 		return core.Deck{}, fmt.Errorf("deck name is required")
@@ -101,6 +105,7 @@ func (service *StudyService) CreateDeck(ctx context.Context, input DeckInput) (c
 
 	deck := core.Deck{
 		ID:          uuid.NewString(),
+		UserID:      userID,
 		Name:        name,
 		Description: strings.TrimSpace(input.Description),
 		CreatedAt:   service.now(),
@@ -112,8 +117,8 @@ func (service *StudyService) CreateDeck(ctx context.Context, input DeckInput) (c
 	return deck, nil
 }
 
-func (service *StudyService) UpdateDeck(ctx context.Context, id string, input DeckPatchInput) (core.Deck, error) {
-	deck, err := service.decks.FindDeckByID(ctx, strings.TrimSpace(id))
+func (service *StudyService) UpdateDeck(ctx context.Context, userID string, id string, input DeckPatchInput) (core.Deck, error) {
+	deck, err := service.decks.FindDeckByID(ctx, userID, strings.TrimSpace(id))
 	if err != nil {
 		return core.Deck{}, err
 	}
@@ -129,14 +134,14 @@ func (service *StudyService) UpdateDeck(ctx context.Context, id string, input De
 		deck.Description = strings.TrimSpace(*input.Description)
 	}
 
-	if err := service.decks.UpdateDeck(ctx, deck); err != nil {
+	if err := service.decks.UpdateDeck(ctx, userID, deck); err != nil {
 		return core.Deck{}, err
 	}
 
 	return deck, nil
 }
 
-func (service *StudyService) UpdateDecks(ctx context.Context, ids []string, input DeckPatchInput) ([]core.Deck, error) {
+func (service *StudyService) UpdateDecks(ctx context.Context, userID string, ids []string, input DeckPatchInput) ([]core.Deck, error) {
 	cleaned := cleanIDs(ids)
 	if len(cleaned) == 0 {
 		return nil, fmt.Errorf("at least one id is required")
@@ -144,7 +149,7 @@ func (service *StudyService) UpdateDecks(ctx context.Context, ids []string, inpu
 
 	updated := make([]core.Deck, 0, len(cleaned))
 	for _, id := range cleaned {
-		deck, err := service.UpdateDeck(ctx, id, input)
+		deck, err := service.UpdateDeck(ctx, userID, id, input)
 		if err != nil {
 			return nil, err
 		}
@@ -154,37 +159,38 @@ func (service *StudyService) UpdateDecks(ctx context.Context, ids []string, inpu
 	return updated, nil
 }
 
-func (service *StudyService) DeleteDeck(ctx context.Context, id string) error {
-	return service.decks.DeleteDeck(ctx, strings.TrimSpace(id))
+func (service *StudyService) DeleteDeck(ctx context.Context, userID string, id string) error {
+	return service.decks.DeleteDeck(ctx, userID, strings.TrimSpace(id))
 }
 
-func (service *StudyService) DeleteDecks(ctx context.Context, ids []string) (int, error) {
+func (service *StudyService) DeleteDecks(ctx context.Context, userID string, ids []string) (int, error) {
 	cleaned := cleanIDs(ids)
 	if len(cleaned) == 0 {
 		return 0, fmt.Errorf("at least one id is required")
 	}
 
-	return service.decks.DeleteDecks(ctx, cleaned)
+	return service.decks.DeleteDecks(ctx, userID, cleaned)
 }
 
-func (service *StudyService) ListCards(ctx context.Context) ([]core.Card, error) {
-	return service.cards.ListCards(ctx)
+func (service *StudyService) ListCards(ctx context.Context, userID string) ([]core.Card, error) {
+	return service.cards.ListCards(ctx, userID)
 }
 
-func (service *StudyService) SearchCards(ctx context.Context, query string) ([]core.Card, error) {
-	return service.cards.SearchCards(ctx, strings.TrimSpace(query))
+func (service *StudyService) SearchCards(ctx context.Context, userID string, query string) ([]core.Card, error) {
+	return service.cards.SearchCards(ctx, userID, strings.TrimSpace(query))
 }
 
-func (service *StudyService) CardByID(ctx context.Context, id string) (core.Card, error) {
-	return service.cards.FindCardByID(ctx, strings.TrimSpace(id))
+func (service *StudyService) CardByID(ctx context.Context, userID string, id string) (core.Card, error) {
+	return service.cards.FindCardByID(ctx, userID, strings.TrimSpace(id))
 }
 
-func (service *StudyService) CreateCard(ctx context.Context, input CardInput) (core.Card, error) {
-	card, err := service.cardFromInput(ctx, input)
+func (service *StudyService) CreateCard(ctx context.Context, userID string, input CardInput) (core.Card, error) {
+	card, err := service.cardFromInput(ctx, userID, input)
 	if err != nil {
 		return core.Card{}, err
 	}
 	card.ID = uuid.NewString()
+	card.UserID = userID
 	card.CreatedAt = service.now()
 	card.ReviewState = core.NewState(service.now())
 
@@ -195,8 +201,8 @@ func (service *StudyService) CreateCard(ctx context.Context, input CardInput) (c
 	return card, nil
 }
 
-func (service *StudyService) UpdateCard(ctx context.Context, id string, input CardPatchInput) (core.Card, error) {
-	card, err := service.cards.FindCardByID(ctx, strings.TrimSpace(id))
+func (service *StudyService) UpdateCard(ctx context.Context, userID string, id string, input CardPatchInput) (core.Card, error) {
+	card, err := service.cards.FindCardByID(ctx, userID, strings.TrimSpace(id))
 	if err != nil {
 		return core.Card{}, err
 	}
@@ -206,7 +212,7 @@ func (service *StudyService) UpdateCard(ctx context.Context, id string, input Ca
 		if deckID == "" {
 			return core.Card{}, fmt.Errorf("deckId cannot be empty")
 		}
-		if _, err := service.decks.FindDeckByID(ctx, deckID); err != nil {
+		if _, err := service.decks.FindDeckByID(ctx, userID, deckID); err != nil {
 			return core.Card{}, err
 		}
 		card.DeckID = deckID
@@ -239,14 +245,14 @@ func (service *StudyService) UpdateCard(ctx context.Context, id string, input Ca
 		return core.Card{}, fmt.Errorf("korean and translation are required")
 	}
 
-	if err := service.cards.UpdateCard(ctx, card); err != nil {
+	if err := service.cards.UpdateCard(ctx, userID, card); err != nil {
 		return core.Card{}, err
 	}
 
 	return card, nil
 }
 
-func (service *StudyService) UpdateCards(ctx context.Context, ids []string, input CardPatchInput) ([]core.Card, error) {
+func (service *StudyService) UpdateCards(ctx context.Context, userID string, ids []string, input CardPatchInput) ([]core.Card, error) {
 	cleaned := cleanIDs(ids)
 	if len(cleaned) == 0 {
 		return nil, fmt.Errorf("at least one id is required")
@@ -254,7 +260,7 @@ func (service *StudyService) UpdateCards(ctx context.Context, ids []string, inpu
 
 	updated := make([]core.Card, 0, len(cleaned))
 	for _, id := range cleaned {
-		card, err := service.UpdateCard(ctx, id, input)
+		card, err := service.UpdateCard(ctx, userID, id, input)
 		if err != nil {
 			return nil, err
 		}
@@ -264,25 +270,25 @@ func (service *StudyService) UpdateCards(ctx context.Context, ids []string, inpu
 	return updated, nil
 }
 
-func (service *StudyService) DeleteCard(ctx context.Context, id string) error {
-	return service.cards.DeleteCard(ctx, strings.TrimSpace(id))
+func (service *StudyService) DeleteCard(ctx context.Context, userID string, id string) error {
+	return service.cards.DeleteCard(ctx, userID, strings.TrimSpace(id))
 }
 
-func (service *StudyService) DeleteCards(ctx context.Context, ids []string) (int, error) {
+func (service *StudyService) DeleteCards(ctx context.Context, userID string, ids []string) (int, error) {
 	cleaned := cleanIDs(ids)
 	if len(cleaned) == 0 {
 		return 0, fmt.Errorf("at least one id is required")
 	}
 
-	return service.cards.DeleteCards(ctx, cleaned)
+	return service.cards.DeleteCards(ctx, userID, cleaned)
 }
 
-func (service *StudyService) DueCards(ctx context.Context) ([]core.Card, error) {
-	return service.cards.ListDueCards(ctx, service.now())
+func (service *StudyService) DueCards(ctx context.Context, userID string) ([]core.Card, error) {
+	return service.cards.ListDueCards(ctx, userID, service.now())
 }
 
-func (service *StudyService) DifficultCards(ctx context.Context) ([]core.Card, error) {
-	cards, err := service.cards.ListCards(ctx)
+func (service *StudyService) DifficultCards(ctx context.Context, userID string) ([]core.Card, error) {
+	cards, err := service.cards.ListCards(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -297,22 +303,28 @@ func (service *StudyService) DifficultCards(ctx context.Context) ([]core.Card, e
 	return difficult, nil
 }
 
-func (service *StudyService) Stats(ctx context.Context) (core.StudyStats, error) {
-	cards, err := service.cards.ListCards(ctx)
+func (service *StudyService) Stats(ctx context.Context, userID string) (core.StudyStats, error) {
+	cards, err := service.cards.ListCards(ctx, userID)
 	if err != nil {
 		return core.StudyStats{}, err
 	}
 
-	return core.BuildStats(cards, service.now()), nil
+	stats := core.BuildStats(cards, service.now())
+	reviews, err := service.reviews.ListReviewsSince(ctx, userID, service.now().AddDate(0, 0, -90))
+	if err != nil {
+		return core.StudyStats{}, err
+	}
+	applyReviewStats(&stats, reviews, service.now())
+	return stats, nil
 }
 
-func (service *StudyService) AnswerCard(ctx context.Context, cardID string, ratingValue string) (core.Review, error) {
+func (service *StudyService) AnswerCard(ctx context.Context, userID string, cardID string, ratingValue string) (core.Review, error) {
 	rating, err := core.ParseRating(ratingValue)
 	if err != nil {
 		return core.Review{}, err
 	}
 
-	card, err := service.cards.FindCardByID(ctx, cardID)
+	card, err := service.cards.FindCardByID(ctx, userID, cardID)
 	if err != nil {
 		return core.Review{}, err
 	}
@@ -322,12 +334,13 @@ func (service *StudyService) AnswerCard(ctx context.Context, cardID string, rati
 	next := service.scheduler.Schedule(previous, rating, reviewedAt)
 	card.ReviewState = next
 
-	if err := service.cards.UpdateCard(ctx, card); err != nil {
+	if err := service.cards.UpdateCard(ctx, userID, card); err != nil {
 		return core.Review{}, err
 	}
 
 	review := core.Review{
 		ID:         fmt.Sprintf("review-%s-%d", cardID, reviewedAt.UnixNano()),
+		UserID:     userID,
 		CardID:     cardID,
 		Rating:     rating,
 		ReviewedAt: next.LastReviewAt,
@@ -342,12 +355,12 @@ func (service *StudyService) AnswerCard(ctx context.Context, cardID string, rati
 	return review, nil
 }
 
-func (service *StudyService) cardFromInput(ctx context.Context, input CardInput) (core.Card, error) {
+func (service *StudyService) cardFromInput(ctx context.Context, userID string, input CardInput) (core.Card, error) {
 	deckID := strings.TrimSpace(input.DeckID)
 	if deckID == "" {
 		return core.Card{}, fmt.Errorf("deckId is required")
 	}
-	if _, err := service.decks.FindDeckByID(ctx, deckID); err != nil {
+	if _, err := service.decks.FindDeckByID(ctx, userID, deckID); err != nil {
 		return core.Card{}, err
 	}
 	if err := validateCardKind(input.Kind); err != nil {

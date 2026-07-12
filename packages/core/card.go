@@ -12,6 +12,7 @@ const (
 
 type Deck struct {
 	ID          string    `json:"id"`
+	UserID      string    `json:"-"`
 	Name        string    `json:"name"`
 	Description string    `json:"description"`
 	CreatedAt   time.Time `json:"createdAt"`
@@ -19,6 +20,7 @@ type Deck struct {
 
 type Card struct {
 	ID                 string    `json:"id"`
+	UserID             string    `json:"-"`
 	DeckID             string    `json:"deckId"`
 	Kind               CardKind  `json:"kind"`
 	Korean             string    `json:"korean"`
