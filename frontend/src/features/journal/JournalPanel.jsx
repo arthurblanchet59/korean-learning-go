@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import { createJournalEntry, deleteJournalEntry, previewJournalCorrection, updateJournalEntry } from "../../shared/api/studyApi.js";
 
-export function JournalPanel({ entries, runMutation, token }) {
+export function JournalPanel({ entries, isMutating, runMutation, token }) {
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ title: "", text: "" });
   const [preview, setPreview] = useState(null);
@@ -29,6 +29,7 @@ export function JournalPanel({ entries, runMutation, token }) {
   }
 
   return (
+    <fieldset aria-busy={isMutating} className="mutation-surface" disabled={isMutating}>
     <div className="journal-layout">
       <section className="management-section journal-editor">
         <p className="eyebrow">Expression ecrite</p><h2>{editingId ? "Modifier l'entree" : "Ecrire en coreen"}</h2>
@@ -41,8 +42,9 @@ export function JournalPanel({ entries, runMutation, token }) {
       </section>
       <section className="management-section journal-history">
         <div className="section-heading"><div><p className="eyebrow">Historique</p><h2>Mon journal</h2></div><strong>{entries.length}</strong></div>
-        <div className="data-list">{entries.map((entry) => <article className="journal-entry" key={entry.id}><div><strong>{entry.title}</strong><time>{new Date(entry.createdAt).toLocaleDateString("fr-FR")}</time></div><p className="korean-text">{entry.correctedText}</p><small>{entry.corrections.length} suggestion(s)</small><div className="button-row"><button className="secondary-button" onClick={() => edit(entry)} type="button">Modifier</button><button className="danger-button" onClick={() => runMutation(() => deleteJournalEntry(entry.id, token))} type="button">Supprimer</button></div></article>)}</div>
+        <div className="data-list">{entries.map((entry) => <article className="journal-entry" key={entry.id}><div><strong>{entry.title}</strong><time>{new Date(entry.createdAt).toLocaleDateString("fr-FR")}</time></div><p className="korean-text">{entry.correctedText}</p><small>{entry.corrections.length} suggestion(s)</small><div className="button-row"><button className="secondary-button" onClick={() => edit(entry)} type="button">Modifier</button><button className="danger-button" onClick={() => window.confirm(`Supprimer « ${entry.title} » ?`) && runMutation(() => deleteJournalEntry(entry.id, token))} type="button">Supprimer</button></div></article>)}</div>
       </section>
     </div>
+    </fieldset>
   );
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   answerReviewCard,
@@ -37,6 +37,9 @@ export function useStudyDashboard(authToken) {
   });
   const [activeIndex, setActiveIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+	const [isMutating, setIsMutating] = useState(false);
+	const [apiOnline, setApiOnline] = useState(true);
+	const mutationLock = useRef(false);
   const [error, setError] = useState("");
 
   const reload = useCallback(async () => {
@@ -51,6 +54,7 @@ export function useStudyDashboard(authToken) {
       fetchJournal(authToken)
     ]);
     const failed = results.find((result) => !result.ok);
+	setApiOnline(results.every((result) => result.fromAPI !== false));
     if (failed) {
       setError(failed.error || "Impossible de charger les donnees.");
     } else {
@@ -76,14 +80,22 @@ export function useStudyDashboard(authToken) {
   const activeCard = useMemo(() => data.dueCards[activeIndex], [data.dueCards, activeIndex]);
 
   const answerCard = useCallback(async (rating) => {
-    if (!activeCard) return false;
-    const result = await answerReviewCard(activeCard.id, rating, authToken);
-    if (!result.ok) {
-      setError(result.error);
-      return false;
+	if (!activeCard || mutationLock.current) return false;
+	mutationLock.current = true;
+	setIsMutating(true);
+	try {
+	  const result = await answerReviewCard(activeCard.id, rating, authToken);
+	  setApiOnline(result.fromAPI !== false);
+	  if (!result.ok) {
+	    setError(result.error);
+	    return false;
+	  }
+	  await reload();
+	  return true;
+	} finally {
+	  mutationLock.current = false;
+	  setIsMutating(false);
     }
-    await reload();
-    return true;
   }, [activeCard, authToken, reload]);
 
   const checkAnswer = useCallback(async (id, answer, direction) => {
@@ -97,7 +109,17 @@ export function useStudyDashboard(authToken) {
   }, [authToken]);
 
   const runMutation = useCallback(async (operation) => {
-    const result = await operation();
+	if (mutationLock.current) return { ok: false, error: "Une opération est déjà en cours." };
+	mutationLock.current = true;
+	setIsMutating(true);
+	let result;
+	try {
+	  result = await operation();
+	} finally {
+	  mutationLock.current = false;
+	  setIsMutating(false);
+	}
+	setApiOnline(result.fromAPI !== false);
     if (!result.ok) {
       setError(result.error || "L'operation a echoue.");
       return result;
@@ -111,9 +133,10 @@ export function useStudyDashboard(authToken) {
     ...data,
     activeCard,
     activeIndex,
-    apiOnline: !error,
+	apiOnline,
     error,
-    isLoading,
+	isLoading,
+	isMutating,
     answerCard,
     checkAnswer,
     reload,

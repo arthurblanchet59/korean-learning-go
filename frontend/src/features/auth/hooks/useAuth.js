@@ -74,6 +74,11 @@ export function useAuth() {
   );
 
   useEffect(() => {
+	window.addEventListener("auth:unauthorized", logout);
+	return () => window.removeEventListener("auth:unauthorized", logout);
+  }, [logout]);
+
+  useEffect(() => {
     if (!token) {
       setIsLoading(false);
       return;

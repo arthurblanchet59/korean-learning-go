@@ -4,14 +4,14 @@ import { updateLessonProgress } from "../../shared/api/studyApi.js";
 
 const sectionTitles = new Set(["OBJECTIF", "RÈGLE", "MÉTHODE", "EXEMPLES", "MODÈLE", "À RETENIR", "PRATIQUE", "CORRIGÉ"]);
 
-export function LessonsPanel({ lessons, runMutation, token }) {
+export function LessonsPanel({ isMutating, lessons, runMutation, token }) {
   const [activeId, setActiveId] = useState(lessons[0]?.id ?? "");
   const active = lessons.find((lesson) => lesson.id === activeId) ?? lessons[0];
   const [score, setScore] = useState(100);
   const [showCorrection, setShowCorrection] = useState(false);
 
   useEffect(() => {
-    setScore(active?.progress?.score || 100);
+    setScore(active?.progress?.score ?? 100);
     setShowCorrection(false);
   }, [active?.id, active?.progress?.score]);
 
@@ -20,6 +20,7 @@ export function LessonsPanel({ lessons, runMutation, token }) {
   if (!active) return <section className="management-section empty-state"><h2>Aucune lecon</h2></section>;
 
   return (
+    <fieldset aria-busy={isMutating} className="mutation-surface" disabled={isMutating}>
     <section className="lesson-layout">
       <aside className="lesson-list">
         {lessons.map((lesson) => (
@@ -29,7 +30,7 @@ export function LessonsPanel({ lessons, runMutation, token }) {
         ))}
       </aside>
       <article className="lesson-content">
-        <p className="eyebrow">{active.level} · Lecon {active.order}</p>
+        <p className="eyebrow">{active.level} · Leçon {active.order}</p>
         <h2>{active.title}</h2>
         <p className="lead">{active.description}</p>
         <div className="lesson-body">
@@ -49,10 +50,11 @@ export function LessonsPanel({ lessons, runMutation, token }) {
           <label htmlFor={`score-${active.id}`}>Auto-evaluation
             <input id={`score-${active.id}`} max="100" min="0" onChange={(event) => setScore(Number(event.target.value))} type="number" value={score} />
           </label>
-          <button className="primary-button" onClick={() => runMutation(() => updateLessonProgress(active.id, { completed: true, score }, token))} type="button">Marquer comme terminee</button>
+          <button className="primary-button" onClick={() => runMutation(() => updateLessonProgress(active.id, { completed: true, score }, token))} type="button">Marquer comme terminée</button>
         </div>
       </article>
     </section>
+    </fieldset>
   );
 }
 

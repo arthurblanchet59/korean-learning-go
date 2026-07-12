@@ -18,7 +18,7 @@ import {
 const emptyDeck = { name: "", description: "" };
 const emptyCard = { deckId: "", kind: "vocabulary", korean: "", translation: "", romanization: "", exampleKorean: "", exampleTranslation: "", tags: "" };
 
-export function LibraryPanel({ cards, decks, runMutation, token }) {
+export function LibraryPanel({ cards, decks, isMutating, runMutation, token }) {
   const [deckForm, setDeckForm] = useState(emptyDeck);
   const [deckEditing, setDeckEditing] = useState(null);
   const [cardForm, setCardForm] = useState(emptyCard);
@@ -81,6 +81,7 @@ export function LibraryPanel({ cards, decks, runMutation, token }) {
   }
 
   return (
+    <fieldset aria-busy={isMutating} className="mutation-surface" disabled={isMutating}>
     <div className="content-stack">
       <section className="management-section">
         <div className="section-heading"><div><p className="eyebrow">Organisation</p><h2>Decks</h2></div><strong>{decks.length}</strong></div>
@@ -90,13 +91,13 @@ export function LibraryPanel({ cards, decks, runMutation, token }) {
           <button className="primary-button" type="submit">{deckEditing ? "Modifier" : "Ajouter"}</button>
           {deckEditing && <button className="secondary-button" onClick={() => { setDeckEditing(null); setDeckForm(emptyDeck); }} type="button">Annuler</button>}
         </form>
-        {selectedDecks.length > 0 && <div className="bulk-bar"><span>{selectedDecks.length} selectionne(s)</span><input onChange={(event) => setBulkDeckDescription(event.target.value)} placeholder="Description commune" value={bulkDeckDescription} /><button className="secondary-button" disabled={!bulkDeckDescription} onClick={() => runMutation(() => bulkUpdateDecks(selectedDecks, { description: bulkDeckDescription }, token)).then(() => setBulkDeckDescription(""))} type="button">Appliquer</button><button className="danger-button" onClick={() => runMutation(() => bulkDeleteDecks(selectedDecks, token)).then(() => setSelectedDecks([]))} type="button">Supprimer la selection</button></div>}
+        {selectedDecks.length > 0 && <div className="bulk-bar"><span>{selectedDecks.length} selectionne(s)</span><input onChange={(event) => setBulkDeckDescription(event.target.value)} placeholder="Description commune" value={bulkDeckDescription} /><button className="secondary-button" disabled={!bulkDeckDescription} onClick={() => runMutation(() => bulkUpdateDecks(selectedDecks, { description: bulkDeckDescription }, token)).then(() => setBulkDeckDescription(""))} type="button">Appliquer</button><button className="danger-button" onClick={() => window.confirm("Supprimer les decks sélectionnés et toutes leurs cartes ?") && runMutation(() => bulkDeleteDecks(selectedDecks, token)).then(() => setSelectedDecks([]))} type="button">Supprimer la selection</button></div>}
         <div className="data-list">
           {decks.map((deck) => <article className="data-row" key={deck.id}>
             <input aria-label={`Selectionner ${deck.name}`} checked={selectedDecks.includes(deck.id)} onChange={() => toggleSelection(setSelectedDecks, selectedDecks, deck.id)} type="checkbox" />
             <div><strong>{deck.name}</strong><span>{deck.description || "Sans description"}</span></div>
             <button className="secondary-button" onClick={() => editDeck(deck)} type="button">Modifier</button>
-            <button className="danger-button" onClick={() => runMutation(() => deleteDeck(deck.id, token))} type="button">Supprimer</button>
+            <button className="danger-button" onClick={() => window.confirm(`Supprimer « ${deck.name} » et toutes ses cartes ?`) && runMutation(() => deleteDeck(deck.id, token))} type="button">Supprimer</button>
           </article>)}
         </div>
       </section>
@@ -115,17 +116,18 @@ export function LibraryPanel({ cards, decks, runMutation, token }) {
           <button className="primary-button" type="submit">{cardEditing ? "Modifier" : "Ajouter la carte"}</button>
           {cardEditing && <button className="secondary-button" onClick={() => { setCardEditing(null); setCardForm(emptyCard); }} type="button">Annuler</button>}
         </form>
-        {selectedCards.length > 0 && <div className="bulk-bar"><span>{selectedCards.length} selectionnee(s)</span><select onChange={(event) => event.target.value && runMutation(() => bulkUpdateCards(selectedCards, { deckId: event.target.value }, token))} defaultValue=""><option value="">Deplacer vers...</option>{decks.map((deck) => <option key={deck.id} value={deck.id}>{deck.name}</option>)}</select><button className="danger-button" onClick={() => runMutation(() => bulkDeleteCards(selectedCards, token)).then(() => setSelectedCards([]))} type="button">Supprimer</button></div>}
+        {selectedCards.length > 0 && <div className="bulk-bar"><span>{selectedCards.length} selectionnee(s)</span><select onChange={(event) => event.target.value && runMutation(() => bulkUpdateCards(selectedCards, { deckId: event.target.value }, token))} defaultValue=""><option value="">Deplacer vers...</option>{decks.map((deck) => <option key={deck.id} value={deck.id}>{deck.name}</option>)}</select><button className="danger-button" onClick={() => window.confirm("Supprimer les cartes sélectionnées ?") && runMutation(() => bulkDeleteCards(selectedCards, token)).then(() => setSelectedCards([]))} type="button">Supprimer</button></div>}
         <div className="data-list">
           {cards.map((card) => <article className="data-row card-row" key={card.id}>
             <input aria-label={`Selectionner ${card.korean}`} checked={selectedCards.includes(card.id)} onChange={() => toggleSelection(setSelectedCards, selectedCards, card.id)} type="checkbox" />
             <div><strong className="korean-text">{card.korean}</strong><span>{card.translation} · {card.romanization}</span></div>
             <span className="tag">{card.kind}</span>
             <button className="secondary-button" onClick={() => editCard(card)} type="button">Modifier</button>
-            <button className="danger-button" onClick={() => runMutation(() => deleteCard(card.id, token))} type="button">Supprimer</button>
+            <button className="danger-button" onClick={() => window.confirm(`Supprimer la carte « ${card.korean} » ?`) && runMutation(() => deleteCard(card.id, token))} type="button">Supprimer</button>
           </article>)}
         </div>
       </section>
     </div>
+    </fieldset>
   );
 }

@@ -1,7 +1,7 @@
 const navItems = [
   ["study", "Revision"],
   ["library", "Bibliotheque"],
-  ["lessons", "Lecons"],
+  ["lessons", "Leçons"],
   ["journal", "Journal"],
   ["insights", "Progression"],
   ["search", "Recherche"],

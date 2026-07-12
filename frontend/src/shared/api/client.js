@@ -41,6 +41,9 @@ async function request(path, options = {}) {
     });
 
     if (!response.ok) {
+	  if (response.status === 401 && token) {
+	    window.dispatchEvent(new Event("auth:unauthorized"));
+	  }
       return {
         ok: false,
         fromAPI: true,

@@ -885,3 +885,13 @@ textarea {
     display: none;
   }
 }
+.mutation-surface {
+  border: 0;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}
+
+.mutation-surface:disabled {
+  opacity: 0.72;
+}
