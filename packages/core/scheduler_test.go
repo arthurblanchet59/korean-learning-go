@@ -35,3 +35,18 @@ func TestScheduleGoodIncreasesInterval(t *testing.T) {
 		t.Fatalf("expected interval to increase, got first=%d second=%d", first.IntervalDays, second.IntervalDays)
 	}
 }
+
+func TestScheduleHardUsesProportionalIntervalForMatureCard(t *testing.T) {
+	now := time.Date(2026, 7, 8, 10, 0, 0, 0, time.UTC)
+	state := NewState(now)
+	state.IntervalDays = 30
+
+	next := NewScheduler().Schedule(state, RatingHard, now)
+
+	if next.IntervalDays != 24 {
+		t.Fatalf("expected 24 day hard interval, got %d", next.IntervalDays)
+	}
+	if next.NextReviewAt.Sub(now) != 24*24*time.Hour {
+		t.Fatalf("mature hard card should not return after one hour: %s", next.NextReviewAt)
+	}
+}
