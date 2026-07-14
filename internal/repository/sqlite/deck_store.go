@@ -125,3 +125,45 @@ func (store *Store) DeleteDecks(ctx context.Context, userID string, ids []string
 	affected, err := result.RowsAffected()
 	return int(affected), err
 }
+
+func (store *Store) UpdateDecks(ctx context.Context, userID string, decks []core.Deck) error {
+	tx, err := store.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer rollback(tx)
+
+	for _, deck := range decks {
+		result, err := tx.ExecContext(ctx, `UPDATE decks SET name = ?, description = ? WHERE id = ? AND user_id = ?`, deck.Name, deck.Description, deck.ID, userID)
+		if err != nil {
+			return err
+		}
+		if err := requireAffected(result); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+func scanDecks(rows *sql.Rows) ([]core.Deck, error) {
+	decks := make([]core.Deck, 0)
+	for rows.Next() {
+		deck, err := scanDeck(rows)
+		if err != nil {
+			return nil, err
+		}
+		decks = append(decks, deck)
+	}
+	return decks, rows.Err()
+}
+
+func scanDeck(scanner rowScanner) (core.Deck, error) {
+	var deck core.Deck
+	var createdAt string
+	err := scanner.Scan(&deck.ID, &deck.UserID, &deck.Name, &deck.Description, &createdAt)
+	if err != nil {
+		return core.Deck{}, err
+	}
+	deck.CreatedAt = parseTime(createdAt)
+	return deck, nil
+}

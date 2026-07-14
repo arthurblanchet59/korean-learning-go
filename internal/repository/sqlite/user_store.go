@@ -108,3 +108,31 @@ func (store *Store) UpdateUser(ctx context.Context, user domain.User) error {
 
 	return nil
 }
+
+func scanUser(scanner rowScanner) (domain.User, error) {
+	var user domain.User
+	var isAdmin int
+	var createdAt string
+	var updatedAt string
+
+	err := scanner.Scan(
+		&user.ID,
+		&user.Name,
+		&user.Email,
+		&user.PasswordHash,
+		&isAdmin,
+		&createdAt,
+		&updatedAt,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.User{}, repository.ErrNotFound
+	}
+	if err != nil {
+		return domain.User{}, err
+	}
+
+	user.IsAdmin = isAdmin == 1
+	user.CreatedAt = parseTime(createdAt)
+	user.UpdatedAt = parseTime(updatedAt)
+	return user, nil
+}
