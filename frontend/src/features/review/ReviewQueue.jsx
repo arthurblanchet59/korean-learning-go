@@ -6,9 +6,9 @@ const kindLabels = {
 
 export function ReviewQueue({ cards, activeIndex, isLoading, onSelect }) {
   return (
-    <aside className="queue-panel" aria-label="Cartes a reviser">
+    <aside className="queue-panel" aria-label="Cartes à réviser">
       <div className="panel-heading">
-        <p className="eyebrow">File de revision</p>
+        <p className="eyebrow">File de révision</p>
         <strong>{cards.length} cartes</strong>
       </div>
 
@@ -17,7 +17,7 @@ export function ReviewQueue({ cards, activeIndex, isLoading, onSelect }) {
           <div className="queue-empty">
             {isLoading
               ? "Chargement des cartes dues..."
-              : "Aucune carte due aujourd'hui. Profite-en pour parcourir une lecon ou enrichir ta bibliotheque."}
+              : "Aucune carte due aujourd'hui. Profite-en pour parcourir une leçon ou enrichir ta bibliothèque."}
           </div>
         ) : (
           cards.map((card, index) => (
@@ -28,7 +28,7 @@ export function ReviewQueue({ cards, activeIndex, isLoading, onSelect }) {
               onClick={() => onSelect(index)}
             >
               <strong>Carte {index + 1}</strong>
-              <span>{kindLabels[card.kind] ?? "Revision"}{card.tags?.[0] ? ` · ${card.tags[0]}` : ""}</span>
+              <span>{kindLabels[card.kind] ?? "Révision"}{card.tags?.[0] ? ` · ${card.tags[0]}` : ""}</span>
             </button>
           ))
         )}

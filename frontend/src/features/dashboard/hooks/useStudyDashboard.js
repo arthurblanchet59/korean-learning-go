@@ -101,7 +101,7 @@ export function useStudyDashboard(authToken) {
   const checkAnswer = useCallback(async (id, answer, direction) => {
     const result = await checkCardAnswer(id, answer, direction, authToken);
     if (!result.ok) {
-      setError(result.error || "Impossible de verifier la reponse.");
+      setError(result.error || "Impossible de vérifier la réponse.");
       return null;
     }
     setError("");

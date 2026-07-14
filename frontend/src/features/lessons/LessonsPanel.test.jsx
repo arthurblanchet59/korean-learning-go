@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { LessonsPanel } from "./LessonsPanel.jsx";
 
 describe("LessonsPanel", () => {
-  it("preserves a real score of zero and displays the lesson label", () => {
+  it("shows a simple completion action without exposing a score", () => {
     render(
       <LessonsPanel
         lessons={[{
@@ -22,12 +22,13 @@ describe("LessonsPanel", () => {
     );
 
     expect(screen.getByText(/Leçon 1/)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Auto-evaluation/i)).toHaveValue(0);
+    expect(screen.queryByLabelText(/Auto-evaluation/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Valider la leçon" })).toBeEnabled();
+    expect(screen.getByText("Leçon à faire")).toBeInTheDocument();
   });
 
   it("shows an explicit empty state", () => {
     render(<LessonsPanel lessons={[]} runMutation={vi.fn()} token="token" />);
-    expect(screen.getByText(/Aucune lecon/i)).toBeInTheDocument();
+    expect(screen.getByText(/Aucune leçon/i)).toBeInTheDocument();
   });
 });
-
