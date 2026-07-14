@@ -590,6 +590,7 @@ textarea {
 }
 
 .study-layout {
+  align-items: start;
   display: grid;
   gap: 18px;
   grid-template-columns: minmax(0, 1fr) 320px;
@@ -603,19 +604,37 @@ textarea {
   padding: 24px;
 }
 
+.review-panel,
+.queue-panel {
+  align-content: start;
+}
+
+.queue-panel {
+  max-height: min(680px, calc(100vh - 180px));
+}
+
+.queue-panel .queue-list {
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
 .review-header span,
 .panel-heading strong {
   color: #18332f;
 }
 
 .card-face {
+  align-items: center;
   background: #f8f5ee;
   border-radius: 8px;
-  padding: 28px;
+  display: flex;
+  min-height: 160px;
+  padding: 24px;
 }
 
 .card-face h2 {
-  font-size: 58px;
+  font-size: 46px;
   letter-spacing: 0;
 }
 
@@ -686,6 +705,188 @@ textarea {
 .deck-list {
   display: grid;
   gap: 10px;
+}
+
+.card-library-heading {
+  align-items: flex-end;
+}
+
+.card-library-toolbar {
+  align-items: end;
+  background: #f5f7f4;
+  border: 1px solid #d9e1dc;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(260px, 2fr) repeat(3, minmax(150px, 1fr));
+  margin-top: 20px;
+  padding: 14px;
+}
+
+.card-library-toolbar label,
+.card-editor-form label {
+  color: #53615b;
+  display: grid;
+  font-size: 13px;
+  font-weight: 800;
+  gap: 6px;
+}
+
+.card-results-summary {
+  color: #66736c;
+  font-size: 14px;
+  margin: 14px 0;
+}
+
+.card-results-summary strong {
+  color: #18332f;
+}
+
+.card-management-list {
+  border-top: 1px solid #ded8ca;
+  display: grid;
+}
+
+.managed-card-row {
+  align-items: center;
+  border-bottom: 1px solid #ebe5da;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: 15px 0;
+}
+
+.managed-card-row > input[type="checkbox"] {
+  min-height: 18px;
+  width: 18px;
+}
+
+.managed-card-content {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.managed-card-content > div:first-child {
+  align-items: baseline;
+  display: flex;
+  gap: 10px;
+}
+
+.managed-card-content > div:first-child strong {
+  font-size: 22px;
+}
+
+.managed-card-content > div:first-child span,
+.managed-card-content p {
+  color: #53615b;
+  margin: 0;
+}
+
+.managed-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.managed-card-meta span {
+  background: #edf1ef;
+  border-radius: 6px;
+  color: #53615b;
+  font-size: 12px;
+  padding: 4px 7px;
+}
+
+.managed-card-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.library-empty-state {
+  color: #53615b;
+  display: grid;
+  gap: 5px;
+  padding: 32px 16px;
+  text-align: center;
+}
+
+.card-pagination {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.card-pagination span {
+  color: #53615b;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.modal-backdrop {
+  align-items: center;
+  background: rgba(20, 31, 27, 0.58);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 24px;
+  position: fixed;
+  z-index: 100;
+}
+
+.card-editor-modal {
+  background: #ffffff;
+  border: 1px solid #cfc8bb;
+  border-radius: 8px;
+  box-shadow: 0 20px 60px rgba(20, 31, 27, 0.24);
+  max-height: calc(100vh - 48px);
+  max-width: 760px;
+  overflow-y: auto;
+  padding: 24px;
+  width: 100%;
+}
+
+.modal-header {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+}
+
+.modal-header h2 {
+  font-size: 24px;
+  margin: 4px 0 20px;
+}
+
+.modal-close {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: #53615b;
+  display: inline-flex;
+  font-size: 28px;
+  height: 40px;
+  justify-content: center;
+  width: 40px;
+}
+
+.card-editor-form {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.card-editor-form .full-width {
+  grid-column: 1 / -1;
+}
+
+.modal-actions {
+  border-top: 1px solid #ded8ca;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 4px;
+  padding-top: 16px;
 }
 
 .queue-card,
@@ -900,6 +1101,10 @@ textarea {
   .admin-grid {
     grid-template-columns: 1fr;
   }
+
+  .card-library-toolbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 560px) {
@@ -929,11 +1134,44 @@ textarea {
   }
 
   .card-face h2 {
-    font-size: 42px;
+    font-size: 38px;
   }
 
   .user-panel small {
     display: none;
+  }
+
+  .card-library-heading,
+  .card-library-heading .button-row {
+    align-items: stretch;
+    display: grid;
+  }
+
+  .card-library-toolbar,
+  .card-editor-form {
+    grid-template-columns: 1fr;
+  }
+
+  .card-editor-form .full-width {
+    grid-column: auto;
+  }
+
+  .managed-card-row {
+    align-items: start;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .managed-card-actions {
+    grid-column: 2;
+  }
+
+  .modal-backdrop {
+    padding: 10px;
+  }
+
+  .card-editor-modal {
+    max-height: calc(100vh - 20px);
+    padding: 18px;
   }
 }
 .mutation-surface {
