@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/mail"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/arthurblanchet59/korean-learning-go/packages/core"
 )
@@ -40,6 +42,7 @@ type Lesson struct {
 
 type DashboardData struct {
 	User      User
+	Users     []User
 	Stats     core.StudyStats
 	Due       []core.Card
 	Cards     []core.Card
@@ -60,7 +63,7 @@ func NewAPIClient(baseURL string) *APIClient {
 
 func (client *APIClient) Login(email string, password string) (AuthResult, error) {
 	var result AuthResult
-	err := client.do(http.MethodPost, "/user/login", map[string]string{"email": email, "password": password}, &result)
+	err := client.do(http.MethodPost, "/user/login", map[string]string{"email": cleanEmailInput(email), "password": password}, &result)
 	if err != nil {
 		return AuthResult{}, err
 	}
@@ -72,6 +75,18 @@ func (client *APIClient) Login(email string, password string) (AuthResult, error
 }
 
 func (client *APIClient) Register(name string, email string, password string) (AuthResult, error) {
+	name = cleanNameInput(name)
+	email = cleanEmailInput(email)
+	if len([]rune(name)) < 2 {
+		return AuthResult{}, fmt.Errorf("le nom doit contenir au moins 2 caractères")
+	}
+	if !validEmailInput(email) {
+		return AuthResult{}, fmt.Errorf("l'adresse email n'est pas valide")
+	}
+	if len([]rune(password)) < 8 {
+		return AuthResult{}, fmt.Errorf("le mot de passe doit contenir au moins 8 caractères")
+	}
+
 	var result AuthResult
 	err := client.do(http.MethodPost, "/user/register", map[string]string{"name": name, "email": email, "password": password}, &result)
 	if err != nil {
@@ -84,18 +99,65 @@ func (client *APIClient) Register(name string, email string, password string) (A
 	return result, nil
 }
 
+func (client *APIClient) UpdateProfile(name string, email string, password string) error {
+	payload := map[string]string{"name": cleanNameInput(name), "email": cleanEmailInput(email)}
+	if password != "" {
+		payload["password"] = password
+	}
+	return client.do(http.MethodPut, "/user/me", payload, nil)
+}
+
+func (client *APIClient) AdminUpdateUser(userID string, name string, email string, password string) error {
+	payload := map[string]string{"name": cleanNameInput(name), "email": cleanEmailInput(email)}
+	if password != "" {
+		payload["password"] = password
+	}
+	return client.do(http.MethodPut, "/admin/users/"+url.PathEscape(userID), payload, nil)
+}
+
+func cleanNameInput(value string) string {
+	return strings.TrimSpace(strings.Map(func(character rune) rune {
+		if unicode.IsControl(character) || unicode.Is(unicode.Cf, character) {
+			return -1
+		}
+		return character
+	}, value))
+}
+
+func cleanEmailInput(value string) string {
+	return strings.Map(func(character rune) rune {
+		if unicode.IsSpace(character) || unicode.IsControl(character) || unicode.Is(unicode.Cf, character) {
+			return -1
+		}
+		return unicode.ToLower(character)
+	}, value)
+}
+
+func validEmailInput(value string) bool {
+	address, err := mail.ParseAddress(value)
+	return err == nil && address.Address == value
+}
+
 func (client *APIClient) LoadDashboard() (DashboardData, error) {
 	var data DashboardData
+	if err := client.do(http.MethodGet, "/user/me", nil, &data.User); err != nil {
+		return DashboardData{}, err
+	}
 	requests := []struct {
 		path string
 		out  any
 	}{
-		{"/user/me", &data.User}, {"/api/stats", &data.Stats}, {"/api/reviews/due", &data.Due},
+		{"/api/stats", &data.Stats}, {"/api/reviews/due", &data.Due},
 		{"/api/cards", &data.Cards}, {"/api/cards/difficult", &data.Difficult}, {"/api/decks", &data.Decks},
 		{"/api/lessons", &data.Lessons}, {"/api/journal", &data.Journal},
 	}
 	for _, request := range requests {
 		if err := client.do(http.MethodGet, request.path, nil, request.out); err != nil {
+			return DashboardData{}, err
+		}
+	}
+	if data.User.IsAdmin {
+		if err := client.do(http.MethodGet, "/admin/users", nil, &data.Users); err != nil {
 			return DashboardData{}, err
 		}
 	}
@@ -132,42 +194,42 @@ func (client *APIClient) Execute(command string) (string, error) {
 		if len(fields) < 1 {
 			return "", fmt.Errorf("deck-add NOM | DESCRIPTION")
 		}
-		return "Deck cree", client.do(http.MethodPost, "/api/decks", map[string]string{"name": fields[0], "description": field(fields, 1)}, nil)
+		return "Deck créé", client.do(http.MethodPost, "/api/decks", map[string]string{"name": fields[0], "description": field(fields, 1)}, nil)
 	case "deck-update":
 		if len(fields) < 2 {
 			return "", fmt.Errorf("deck-update ID | NOM | DESCRIPTION")
 		}
-		return "Deck modifie", client.do(http.MethodPut, "/api/decks/"+url.PathEscape(fields[0]), map[string]string{"name": fields[1], "description": field(fields, 2)}, nil)
+		return "Deck modifié", client.do(http.MethodPut, "/api/decks/"+url.PathEscape(fields[0]), map[string]string{"name": fields[1], "description": field(fields, 2)}, nil)
 	case "deck-delete":
 		if len(fields) != 1 {
 			return "", fmt.Errorf("deck-delete ID")
 		}
-		return "Deck supprime", client.do(http.MethodDelete, "/api/decks/"+url.PathEscape(fields[0]), nil, nil)
+		return "Deck supprimé", client.do(http.MethodDelete, "/api/decks/"+url.PathEscape(fields[0]), nil, nil)
 	case "decks-delete":
 		ids := commaIDs(argument)
-		return "Decks supprimes", client.do(http.MethodDelete, "/api/decks/bulk", map[string]any{"ids": ids}, nil)
+		return "Decks supprimés", client.do(http.MethodDelete, "/api/decks/bulk", map[string]any{"ids": ids}, nil)
 	case "decks-description":
 		if len(fields) != 2 {
 			return "", fmt.Errorf("decks-description ID1,ID2 | DESCRIPTION")
 		}
-		return "Decks modifies", client.do(http.MethodPut, "/api/decks/bulk", map[string]any{"ids": commaIDs(fields[0]), "patch": map[string]string{"description": fields[1]}}, nil)
+		return "Decks modifiés", client.do(http.MethodPut, "/api/decks/bulk", map[string]any{"ids": commaIDs(fields[0]), "patch": map[string]string{"description": fields[1]}}, nil)
 	case "card-add":
 		if len(fields) < 3 {
 			return "", fmt.Errorf("card-add DECK_ID | COREEN | TRADUCTION | ROMANISATION")
 		}
 		payload := map[string]any{"deckId": fields[0], "kind": "vocabulary", "korean": fields[1], "translation": fields[2], "romanization": field(fields, 3), "tags": []string{}}
-		return "Carte creee", client.do(http.MethodPost, "/api/cards", payload, nil)
+		return "Carte créée", client.do(http.MethodPost, "/api/cards", payload, nil)
 	case "card-update":
 		if len(fields) < 3 {
 			return "", fmt.Errorf("card-update ID | COREEN | TRADUCTION | ROMANISATION")
 		}
 		payload := map[string]any{"korean": fields[1], "translation": fields[2], "romanization": field(fields, 3)}
-		return "Carte modifiee", client.do(http.MethodPut, "/api/cards/"+url.PathEscape(fields[0]), payload, nil)
+		return "Carte modifiée", client.do(http.MethodPut, "/api/cards/"+url.PathEscape(fields[0]), payload, nil)
 	case "card-delete":
 		if len(fields) != 1 {
 			return "", fmt.Errorf("card-delete ID")
 		}
-		return "Carte supprimee", client.do(http.MethodDelete, "/api/cards/"+url.PathEscape(fields[0]), nil, nil)
+		return "Carte supprimée", client.do(http.MethodDelete, "/api/cards/"+url.PathEscape(fields[0]), nil, nil)
 	case "cards-delete":
 		ids := commaIDs(argument)
 		return fmt.Sprintf("%d carte(s) demandee(s)", len(ids)), client.do(http.MethodDelete, "/api/cards/bulk", map[string]any{"ids": ids}, nil)
@@ -175,46 +237,42 @@ func (client *APIClient) Execute(command string) (string, error) {
 		if len(fields) != 2 {
 			return "", fmt.Errorf("cards-move ID1,ID2 | DECK_ID")
 		}
-		return "Cartes deplacees", client.do(http.MethodPut, "/api/cards/bulk", map[string]any{"ids": commaIDs(fields[0]), "patch": map[string]string{"deckId": fields[1]}}, nil)
+		return "Cartes déplacées", client.do(http.MethodPut, "/api/cards/bulk", map[string]any{"ids": commaIDs(fields[0]), "patch": map[string]string{"deckId": fields[1]}}, nil)
 	case "journal-add":
 		if len(fields) < 2 {
 			return "", fmt.Errorf("journal-add TITRE | TEXTE")
 		}
-		return "Entree corrigee et enregistree", client.do(http.MethodPost, "/api/journal", map[string]string{"title": fields[0], "text": fields[1]}, nil)
+		return "Entrée corrigée et enregistrée", client.do(http.MethodPost, "/api/journal", map[string]string{"title": fields[0], "text": fields[1]}, nil)
 	case "journal-update":
 		if len(fields) < 3 {
 			return "", fmt.Errorf("journal-update ID | TITRE | TEXTE")
 		}
-		return "Entree modifiee", client.do(http.MethodPut, "/api/journal/"+url.PathEscape(fields[0]), map[string]string{"title": fields[1], "text": fields[2]}, nil)
+		return "Entrée modifiée", client.do(http.MethodPut, "/api/journal/"+url.PathEscape(fields[0]), map[string]string{"title": fields[1], "text": fields[2]}, nil)
 	case "journal-delete":
 		if len(fields) != 1 {
 			return "", fmt.Errorf("journal-delete ID")
 		}
-		return "Entree supprimee", client.do(http.MethodDelete, "/api/journal/"+url.PathEscape(fields[0]), nil, nil)
+		return "Entrée supprimée", client.do(http.MethodDelete, "/api/journal/"+url.PathEscape(fields[0]), nil, nil)
 	case "lesson-complete":
-		if len(fields) < 1 {
-			return "", fmt.Errorf("lesson-complete ID | SCORE")
+		if len(fields) != 1 {
+			return "", fmt.Errorf("lesson-complete ID")
 		}
-		score := 100
-		if len(fields) > 1 {
-			_, _ = fmt.Sscanf(fields[1], "%d", &score)
-		}
-		return "Lecon terminee", client.do(http.MethodPut, "/api/lessons/"+url.PathEscape(fields[0])+"/progress", map[string]any{"completed": true, "score": score}, nil)
+		return "Leçon terminée", client.do(http.MethodPut, "/api/lessons/"+url.PathEscape(fields[0])+"/progress", map[string]any{"completed": true}, nil)
 	case "profile":
 		if len(fields) < 2 {
 			return "", fmt.Errorf("profile NOM | EMAIL")
 		}
-		return "Profil modifie", client.do(http.MethodPut, "/user/me", map[string]string{"name": fields[0], "email": fields[1]}, nil)
+		return "Profil modifié", client.do(http.MethodPut, "/user/me", map[string]string{"name": fields[0], "email": fields[1]}, nil)
 	case "admin-user":
-		if len(fields) < 2 {
-			return "", fmt.Errorf("admin-user ID | NOUVEAU_NOM")
+		if len(fields) != 3 {
+			return "", fmt.Errorf("admin-user ID | NOM | EMAIL")
 		}
-		return "Utilisateur modifie", client.do(http.MethodPut, "/admin/users/"+url.PathEscape(fields[0]), map[string]string{"name": fields[1]}, nil)
+		return "Utilisateur modifié", client.do(http.MethodPut, "/admin/users/"+url.PathEscape(fields[0]), map[string]string{"name": fields[1], "email": fields[2]}, nil)
 	case "reset":
 		if argument != "CONFIRM" {
 			return "", fmt.Errorf("utilise reset CONFIRM")
 		}
-		return "Base reinitialisee", client.do(http.MethodPost, "/admin/reset", map[string]any{}, nil)
+		return "Base réinitialisée", client.do(http.MethodPost, "/admin/reset", map[string]any{}, nil)
 	case "export":
 		if argument == "" {
 			argument = "korean-cards.csv"
@@ -232,7 +290,7 @@ func (client *APIClient) Execute(command string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		return "CSV importe", client.do(http.MethodPost, "/api/cards/import", map[string]string{"deckId": fields[0], "csv": string(content)}, nil)
+		return "CSV importé", client.do(http.MethodPost, "/api/cards/import", map[string]string{"deckId": fields[0], "csv": string(content)}, nil)
 	default:
 		return "", fmt.Errorf("commande inconnue: %s", name)
 	}

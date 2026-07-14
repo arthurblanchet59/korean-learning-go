@@ -1,6 +1,16 @@
 package main
 
-import "testing"
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/arthurblanchet59/korean-learning-go/packages/core"
+	tea "github.com/charmbracelet/bubbletea"
+)
 
 func TestSplitFields(t *testing.T) {
 	fields := splitFields("deck-id | 안녕하세요 | bonjour")
@@ -13,5 +23,239 @@ func TestVisibleBoundsKeepsCursorVisible(t *testing.T) {
 	start, end := visibleBounds(100, 52, 10)
 	if start > 52 || end <= 52 || end-start != 10 {
 		t.Fatalf("cursor not visible in [%d:%d]", start, end)
+	}
+}
+
+func TestStudyViewHidesAnswerUntilReveal(t *testing.T) {
+	card := core.Card{Korean: "집", Translation: "maison", Romanization: "jip"}
+	m := model{data: DashboardData{Due: []core.Card{card}}, studyDirection: "korean-to-french"}
+
+	hidden := m.studyView(100, 24)
+	if strings.Contains(hidden, "maison") || strings.Contains(hidden, "jip") {
+		t.Fatalf("answer leaked before reveal: %q", hidden)
+	}
+
+	m.revealed = true
+	revealed := m.studyView(100, 24)
+	if !strings.Contains(revealed, "maison") || !strings.Contains(revealed, "jip") {
+		t.Fatalf("revealed answer is incomplete: %q", revealed)
+	}
+}
+
+func TestLessonsViewUsesCompletionStateWithoutScore(t *testing.T) {
+	lesson := Lesson{
+		Lesson:   core.Lesson{ID: "lesson", Title: "Le présent", Description: "Une description", Level: "A1", Content: strings.Repeat("Contenu détaillé de la leçon. ", 30)},
+		Progress: core.LessonProgress{Completed: true, Score: 42, UpdatedAt: time.Now()},
+	}
+	m := model{data: DashboardData{Lessons: []Lesson{lesson}}}
+
+	view := m.lessonsView(100, 20)
+	if strings.Contains(view, "Score") || strings.Contains(view, "42") {
+		t.Fatalf("lesson score should not be displayed: %q", view)
+	}
+	if !strings.Contains(view, "Terminée") || !strings.Contains(view, "PgUp/PgDn") {
+		t.Fatalf("completion or scrolling hint missing: %q", view)
+	}
+}
+
+func TestScrollableTextRespectsViewport(t *testing.T) {
+	view := scrollableText(strings.Repeat("mot ", 80), 30, 8, 0)
+	if lines := strings.Count(view, "\n") + 1; lines > 8 {
+		t.Fatalf("viewport contains %d lines, expected at most 8", lines)
+	}
+}
+
+func TestLessonCompletionDoesNotSendScore(t *testing.T) {
+	var payload map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/api/lessons/lesson-1/progress" {
+			t.Fatalf("unexpected path: %s", request.URL.Path)
+		}
+		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+			t.Fatal(err)
+		}
+		response.WriteHeader(http.StatusOK)
+		_, _ = response.Write([]byte(`{"completed":true}`))
+	}))
+	defer server.Close()
+
+	client := NewAPIClient(server.URL)
+	client.Token = "test-token"
+	if _, err := client.Execute("lesson-complete lesson-1"); err != nil {
+		t.Fatal(err)
+	}
+	if payload["completed"] != true {
+		t.Fatalf("completion flag missing: %#v", payload)
+	}
+	if _, exists := payload["score"]; exists {
+		t.Fatalf("score should not be sent by the TUI: %#v", payload)
+	}
+}
+
+func TestAdminTabIsVisibleOnlyForAdmins(t *testing.T) {
+	regular := model{data: DashboardData{User: User{IsAdmin: false}}}
+	if len(regular.visibleTabs()) != len(tabs) {
+		t.Fatal("regular users must not see the admin tab")
+	}
+	admin := model{data: DashboardData{User: User{IsAdmin: true}}}
+	visible := admin.visibleTabs()
+	if len(visible) != len(tabs)+1 || visible[len(visible)-1] != "ADMIN" {
+		t.Fatalf("admin tab missing: %#v", visible)
+	}
+}
+
+func TestAdminViewListsManageableUsers(t *testing.T) {
+	m := model{client: &APIClient{BaseURL: "http://localhost:8080"}, data: DashboardData{
+		User:  User{IsAdmin: true},
+		Users: []User{{ID: "user-1", Name: "Arthur", Email: "arthur@example.test"}},
+	}}
+	view := m.adminView(110, 24)
+	if !strings.Contains(view, "Arthur") || !strings.Contains(view, "arthur@example.test") || !strings.Contains(view, "e modifier") {
+		t.Fatalf("admin user is not manageable from the view: %q", view)
+	}
+}
+
+func TestAdminEditorUsesGuidedFields(t *testing.T) {
+	m := model{
+		adminEditing: true,
+		adminField:   1,
+		adminName:    "Arthur",
+		adminEmail:   "arthur@example.test",
+	}
+	view := m.adminView(110, 28)
+	for _, expected := range []string{"MODIFIER UN UTILISATEUR", "NOM", "EMAIL", "NOUVEAU MOT DE PASSE", "échap annuler"} {
+		if !strings.Contains(view, expected) {
+			t.Fatalf("admin editor is missing %q: %q", expected, view)
+		}
+	}
+}
+
+func TestAdminUpdateUserSendsOptionalPassword(t *testing.T) {
+	var payload map[string]string
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPut || request.URL.Path != "/admin/users/user-1" {
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.Path)
+		}
+		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+			t.Fatal(err)
+		}
+		response.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	client := NewAPIClient(server.URL)
+	client.Token = "admin-token"
+	if err := client.AdminUpdateUser("user-1", "Arthur B.", "arthur.b@example.test", "new-password"); err != nil {
+		t.Fatal(err)
+	}
+	if payload["name"] != "Arthur B." || payload["email"] != "arthur.b@example.test" || payload["password"] != "new-password" {
+		t.Fatalf("unexpected admin update payload: %#v", payload)
+	}
+}
+
+func TestLogoutAlwaysReturnsToLoginMode(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("USERPROFILE", t.TempDir())
+	m := model{
+		client:      &APIClient{Token: "token"},
+		loggedIn:    true,
+		registering: true,
+		loginName:   "Old name",
+		loginEmail:  "old@example.test",
+		loginPass:   "old-password",
+		loginField:  2,
+	}
+
+	loggedOut := m.logout()
+	if loggedOut.loggedIn || loggedOut.registering || loggedOut.loginField != 0 {
+		t.Fatalf("logout did not return to login mode: %#v", loggedOut)
+	}
+	if loggedOut.loginName != "" || loggedOut.loginEmail != "" || loggedOut.loginPass != "" {
+		t.Fatalf("logout kept authentication fields: %#v", loggedOut)
+	}
+}
+
+func TestUpdateProfileSendsEditableFields(t *testing.T) {
+	var payload map[string]string
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPut || request.URL.Path != "/user/me" {
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.Path)
+		}
+		if request.Header.Get("Authorization") != "Bearer test-token" {
+			t.Fatalf("missing bearer token: %q", request.Header.Get("Authorization"))
+		}
+		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+			t.Fatal(err)
+		}
+		response.WriteHeader(http.StatusOK)
+		_, _ = response.Write([]byte(`{"id":"user-1","name":"Arthur B.","email":"arthur.b@example.test"}`))
+	}))
+	defer server.Close()
+
+	client := NewAPIClient(server.URL)
+	client.Token = "test-token"
+	if err := client.UpdateProfile("Arthur B.", "arthur.b@example.test", "new-password"); err != nil {
+		t.Fatal(err)
+	}
+	if payload["name"] != "Arthur B." || payload["email"] != "arthur.b@example.test" || payload["password"] != "new-password" {
+		t.Fatalf("unexpected profile payload: %#v", payload)
+	}
+}
+
+func TestProfileViewExposesEditAndLogoutActions(t *testing.T) {
+	m := model{data: DashboardData{User: User{ID: "user-1", Name: "Arthur", Email: "arthur@example.test"}}}
+	view := m.profileView(100, 24)
+	if !strings.Contains(view, "e modifier mes informations") || !strings.Contains(view, "D se déconnecter") {
+		t.Fatalf("profile actions are missing: %q", view)
+	}
+}
+
+func TestRegisterTrimsUserInput(t *testing.T) {
+	var payload map[string]string
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+			t.Fatal(err)
+		}
+		response.WriteHeader(http.StatusBadRequest)
+		_, _ = response.Write([]byte(`{"error":"test response"}`))
+	}))
+	defer server.Close()
+
+	client := NewAPIClient(server.URL)
+	_, _ = client.Register("  Test user  ", "  te\u200bst@gmail.com  ", "password-123")
+	if payload["name"] != "Test user" || payload["email"] != "test@gmail.com" {
+		t.Fatalf("registration input was not normalized: %#v", payload)
+	}
+}
+
+func TestRegistrationFormSubmitsDisplayedValues(t *testing.T) {
+	var payload map[string]string
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+			t.Fatal(err)
+		}
+		response.WriteHeader(http.StatusBadRequest)
+		_, _ = response.Write([]byte(`{"error":"test response"}`))
+	}))
+	defer server.Close()
+
+	m := model{
+		client:      NewAPIClient(server.URL),
+		registering: true,
+		loginField:  2,
+		loginName:   "testabt",
+		loginEmail:  "test@gmail.com",
+		loginPass:   "testtest",
+	}
+	_, command := m.updateLogin(tea.KeyMsg{Type: tea.KeyEnter})
+	if command == nil {
+		t.Fatal("registration form did not submit")
+	}
+	message, ok := command().(loginMsg)
+	if !ok || message.err == nil {
+		t.Fatalf("unexpected command result: %#v", message)
+	}
+	if payload["name"] != "testabt" || payload["email"] != "test@gmail.com" || payload["password"] != "testtest" {
+		t.Fatalf("form values changed before submission: %#v", payload)
 	}
 }

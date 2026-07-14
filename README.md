@@ -75,10 +75,11 @@ Raccourcis principaux :
 ```text
 h/l ou ←/→   changer d’onglet
 j/k ou ↑/↓   naviguer
+PgUp/PgDn    faire défiler une leçon ou un journal
 a            saisir une réponse
 v            inverser coréen/français
 espace       révéler une carte
-1 à 4        noter une révision
+1 à 4        indiquer si la carte est à revoir, hésitante, retenue ou maîtrisée
 n            créer un élément
 d            supprimer l’élément actif
 /            rechercher

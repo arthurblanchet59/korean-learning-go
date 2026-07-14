@@ -29,7 +29,7 @@ var (
 	errorStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF8B78")).Bold(true)
 )
 
-var tabs = []string{"REVISION", "BIBLIOTHEQUE", "LECONS", "JOURNAL", "PROGRESSION", "RECHERCHE", "PROFIL"}
+var tabs = []string{"RÉVISION", "BIBLIOTHÈQUE", "LEÇONS", "JOURNAL", "PROGRESSION", "RECHERCHE", "PROFIL"}
 
 type model struct {
 	client         *APIClient
@@ -39,6 +39,7 @@ type model struct {
 	height         int
 	tab            int
 	cursor         int
+	detailScroll   int
 	loading        bool
 	loggedIn       bool
 	revealed       bool
@@ -51,6 +52,17 @@ type model struct {
 	loginName      string
 	loginField     int
 	registering    bool
+	profileEditing bool
+	profileField   int
+	profileName    string
+	profileEmail   string
+	profilePass    string
+	adminEditing   bool
+	adminField     int
+	adminUserID    string
+	adminName      string
+	adminEmail     string
+	adminPass      string
 	studyDirection string
 	status         string
 	err            error
@@ -67,6 +79,9 @@ type loginMsg struct {
 type mutationMsg struct {
 	status string
 	err    error
+}
+type adminUserMsg struct {
+	err error
 }
 type searchMsg struct {
 	result SearchResult
@@ -106,7 +121,7 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = msg.err
 		if msg.err == nil {
 			m.data = msg.data
-			m.status = "Donnees synchronisees"
+			m.status = "Données synchronisées"
 			m.cursor = clamp(m.cursor, 0, max(0, m.itemCount()-1))
 		} else if strings.Contains(strings.ToLower(msg.err.Error()), "token") || strings.Contains(strings.ToLower(msg.err.Error()), "unauthorized") {
 			m.loggedIn = false
@@ -133,12 +148,22 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			return m, loadDashboard(m.client)
 		}
 		return m, nil
+	case adminUserMsg:
+		m.loading = false
+		m.err = msg.err
+		if msg.err == nil {
+			m.adminEditing = false
+			m.adminPass = ""
+			m.status = "Utilisateur mis à jour"
+			return m, loadDashboard(m.client)
+		}
+		return m, nil
 	case searchMsg:
 		m.loading = false
 		m.err = msg.err
 		if msg.err == nil {
 			m.search = msg.result
-			m.status = fmt.Sprintf("%d resultat(s)", len(msg.result.Cards)+len(msg.result.Decks))
+			m.status = fmt.Sprintf("%d résultat(s)", len(msg.result.Cards)+len(msg.result.Decks))
 		}
 		return m, nil
 	case checkMsg:
@@ -147,15 +172,21 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err == nil {
 			m.revealed = true
 			if msg.result.Correct {
-				m.status = "Bonne reponse"
+				m.status = "Bonne réponse"
 			} else {
-				m.status = "Reponse attendue: " + msg.result.Expected
+				m.status = "Réponse attendue : " + msg.result.Expected
 			}
 		}
 		return m, nil
 	case tea.KeyMsg:
 		if !m.loggedIn {
 			return m.updateLogin(msg)
+		}
+		if m.profileEditing {
+			return m.updateProfile(msg)
+		}
+		if m.adminEditing {
+			return m.updateAdminUser(msg)
 		}
 		if m.inputMode != "" {
 			return m.updateInput(msg)
@@ -165,7 +196,133 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m model) updateAdminUser(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch key.Type {
+	case tea.KeyEsc:
+		m.adminEditing = false
+		m.adminPass = ""
+		m.err = nil
+	case tea.KeyTab, tea.KeyDown:
+		m.adminField = (m.adminField + 1) % 3
+	case tea.KeyUp:
+		m.adminField = (m.adminField + 2) % 3
+	case tea.KeyEnter:
+		if m.adminField < 2 {
+			m.adminField++
+			return m, nil
+		}
+		name, email := cleanNameInput(m.adminName), cleanEmailInput(m.adminEmail)
+		if len([]rune(name)) < 2 {
+			m.err = fmt.Errorf("le nom doit contenir au moins 2 caractères")
+			return m, nil
+		}
+		if !validEmailInput(email) {
+			m.err = fmt.Errorf("l'adresse email n'est pas valide")
+			return m, nil
+		}
+		if m.adminPass != "" && len([]rune(m.adminPass)) < 8 {
+			m.err = fmt.Errorf("le mot de passe doit contenir au moins 8 caractères")
+			return m, nil
+		}
+		m.loading, m.err = true, nil
+		return m, adminUpdateUserCommand(m.client, m.adminUserID, name, email, m.adminPass)
+	case tea.KeyBackspace:
+		m.err = nil
+		switch m.adminField {
+		case 0:
+			m.adminName = trimLastRune(m.adminName)
+		case 1:
+			m.adminEmail = trimLastRune(m.adminEmail)
+		case 2:
+			m.adminPass = trimLastRune(m.adminPass)
+		}
+	case tea.KeyRunes:
+		m.err = nil
+		m.appendAdminInput(string(key.Runes))
+	case tea.KeySpace:
+		m.err = nil
+		m.appendAdminInput(" ")
+	}
+	return m, nil
+}
+
+func (m *model) appendAdminInput(value string) {
+	switch m.adminField {
+	case 0:
+		m.adminName += value
+	case 1:
+		m.adminEmail += value
+	case 2:
+		m.adminPass += value
+	}
+}
+
+func (m model) updateProfile(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch key.Type {
+	case tea.KeyEsc:
+		m.profileEditing = false
+		m.profilePass = ""
+	case tea.KeyTab, tea.KeyDown:
+		m.profileField = (m.profileField + 1) % 3
+	case tea.KeyUp:
+		m.profileField = (m.profileField + 2) % 3
+	case tea.KeyEnter:
+		if m.profileField < 2 {
+			m.profileField++
+			return m, nil
+		}
+		if strings.TrimSpace(m.profileName) == "" || strings.TrimSpace(m.profileEmail) == "" {
+			m.err = fmt.Errorf("le nom et l'email sont obligatoires")
+			return m, nil
+		}
+		if m.profilePass != "" && len([]rune(m.profilePass)) < 8 {
+			m.err = fmt.Errorf("le mot de passe doit contenir au moins 8 caractères")
+			return m, nil
+		}
+		name, email, password := m.profileName, m.profileEmail, m.profilePass
+		m.profileEditing = false
+		m.profilePass = ""
+		m.loading, m.err = true, nil
+		return m, updateProfileCommand(m.client, name, email, password)
+	case tea.KeyBackspace:
+		switch m.profileField {
+		case 0:
+			m.profileName = trimLastRune(m.profileName)
+		case 1:
+			m.profileEmail = trimLastRune(m.profileEmail)
+		case 2:
+			m.profilePass = trimLastRune(m.profilePass)
+		}
+	case tea.KeyRunes:
+		m.appendProfileInput(string(key.Runes))
+	case tea.KeySpace:
+		m.appendProfileInput(" ")
+	}
+	return m, nil
+}
+
+func (m *model) appendProfileInput(value string) {
+	switch m.profileField {
+	case 0:
+		m.profileName += value
+	case 1:
+		m.profileEmail += value
+	case 2:
+		m.profilePass += value
+	}
+}
+
 func (m model) updateLogin(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if key.String() == "ctrl+r" {
+		m.registering = !m.registering
+		m.loginField = 0
+		m.loginName = ""
+		m.loginEmail = ""
+		m.loginPass = ""
+		m.err = nil
+		return m, nil
+	}
+
 	fieldCount := 2
 	if m.registering {
 		fieldCount = 3
@@ -186,6 +343,7 @@ func (m model) updateLogin(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, loginCommand(m.client, m.loginEmail, m.loginPass)
 	case tea.KeyBackspace:
+		m.err = nil
 		if m.registering && m.loginField == 0 {
 			m.loginName = trimLastRune(m.loginName)
 		} else if (m.registering && m.loginField == 1) || (!m.registering && m.loginField == 0) {
@@ -194,6 +352,7 @@ func (m model) updateLogin(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.loginPass = trimLastRune(m.loginPass)
 		}
 	case tea.KeyRunes:
+		m.err = nil
 		if m.registering && m.loginField == 0 {
 			m.loginName += string(key.Runes)
 		} else if (m.registering && m.loginField == 1) || (!m.registering && m.loginField == 0) {
@@ -201,11 +360,6 @@ func (m model) updateLogin(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		} else {
 			m.loginPass += string(key.Runes)
 		}
-	}
-	if key.String() == "ctrl+r" {
-		m.registering = !m.registering
-		m.loginField = 0
-		m.err = nil
 	}
 	return m, nil
 }
@@ -244,6 +398,8 @@ func (m model) updateNavigation(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch key.String() {
 	case "q", "ctrl+c":
 		return m, tea.Quit
+	case "D":
+		return m.logout(), nil
 	case "?":
 		m.showHelp = !m.showHelp
 	case ":":
@@ -253,19 +409,27 @@ func (m model) updateNavigation(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.inputMode = "search"
 		m.input = ""
 	case "h", "left":
-		m.tab = (m.tab - 1 + len(tabs)) % len(tabs)
+		m.tab = (m.tab - 1 + len(m.visibleTabs())) % len(m.visibleTabs())
 		m.cursor = 0
+		m.detailScroll = 0
 		m.revealed = false
 	case "l", "right":
-		m.tab = (m.tab + 1) % len(tabs)
+		m.tab = (m.tab + 1) % len(m.visibleTabs())
 		m.cursor = 0
+		m.detailScroll = 0
 		m.revealed = false
 	case "j", "down":
 		m.cursor = clamp(m.cursor+1, 0, max(0, m.itemCount()-1))
 		m.revealed = false
+		m.detailScroll = 0
 	case "k", "up":
 		m.cursor = clamp(m.cursor-1, 0, max(0, m.itemCount()-1))
 		m.revealed = false
+		m.detailScroll = 0
+	case "pgdown", "ctrl+d":
+		m.detailScroll += max(3, m.height/3)
+	case "pgup", "ctrl+u":
+		m.detailScroll = max(0, m.detailScroll-max(3, m.height/3))
 	case "r":
 		m.loading = true
 		return m, loadDashboard(m.client)
@@ -273,6 +437,7 @@ func (m model) updateNavigation(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.tab == 1 {
 			m.libraryCards = !m.libraryCards
 			m.cursor = 0
+			m.detailScroll = 0
 		}
 	case " ":
 		if m.tab == 0 {
@@ -282,7 +447,7 @@ func (m model) updateNavigation(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.tab == 0 && len(m.data.Due) > 0 {
 			m.inputMode = "answer"
 			m.input = ""
-			m.status = "Ecris ta reponse"
+			m.status = "Écris ta réponse"
 		}
 	case "v":
 		if m.tab == 0 {
@@ -300,8 +465,9 @@ func (m model) updateNavigation(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, answerCommand(m.client, m.data.Due[m.cursor].ID, ratings[key.String()])
 		}
 	case "enter":
-		if m.tab == 2 && len(m.data.Lessons) > 0 {
-			return m, executeCommand(m.client, "lesson-complete "+m.data.Lessons[m.cursor].ID+" | 100")
+		if m.tab == 2 && len(m.data.Lessons) > 0 && !m.data.Lessons[m.cursor].Progress.Completed {
+			m.loading = true
+			return m, executeCommand(m.client, "lesson-complete "+m.data.Lessons[m.cursor].ID)
 		}
 	case "n":
 		m.inputMode = "command"
@@ -315,6 +481,29 @@ func (m model) updateNavigation(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case 3:
 			m.input = "journal-add "
 		}
+	case "e":
+		if m.tab == 6 {
+			m.profileEditing = true
+			m.profileField = 0
+			m.profileName = m.data.User.Name
+			m.profileEmail = m.data.User.Email
+			m.profilePass = ""
+			m.err = nil
+		} else if m.tab == 7 && len(m.data.Users) > 0 {
+			user := m.data.Users[m.cursor]
+			m.adminEditing = true
+			m.adminField = 0
+			m.adminUserID = user.ID
+			m.adminName = user.Name
+			m.adminEmail = user.Email
+			m.adminPass = ""
+			m.err = nil
+		}
+	case "x":
+		if m.tab == 7 && m.data.User.IsAdmin {
+			m.inputMode = "command"
+			m.input = "reset CONFIRM"
+		}
 	case "d":
 		if command := m.deleteCommand(); command != "" {
 			m.loading = true
@@ -322,6 +511,29 @@ func (m model) updateNavigation(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, nil
+}
+
+func (m model) logout() model {
+	m.client.Token = ""
+	_ = os.Remove(tokenPath())
+	m.loggedIn = false
+	m.data = DashboardData{}
+	m.search = SearchResult{}
+	m.tab = 0
+	m.cursor = 0
+	m.loading = false
+	m.profileEditing = false
+	m.adminEditing = false
+	m.inputMode = ""
+	m.input = ""
+	m.registering = false
+	m.loginField = 0
+	m.loginName = ""
+	m.loginEmail = ""
+	m.loginPass = ""
+	m.status = "Déconnecté"
+	m.err = nil
+	return m
 }
 
 func (m model) View() string {
@@ -353,7 +565,7 @@ func (m model) loginView() string {
 	modeLabel := "Connexion au backend Gin / SQLite"
 	fields := ""
 	if m.registering {
-		modeLabel = "Creation d'un compte personnel"
+		modeLabel = "Création d'un compte personnel"
 		fields += field("NOM", m.loginName, m.loginField == 0) + "\n"
 	}
 	emailField, passwordField := 0, 1
@@ -361,7 +573,7 @@ func (m model) loginView() string {
 		emailField, passwordField = 1, 2
 	}
 	fields += field("EMAIL", m.loginEmail, m.loginField == emailField) + "\n" + field("MOT DE PASSE", password, m.loginField == passwordField)
-	content := activeStyle.Render("한  KOREAN LEARNING") + "\n\n" + mutedStyle.Render(modeLabel) + "\n\n" + fields + "\n\n" + mutedStyle.Render("tab changer  ·  entree valider  ·  ctrl+r connexion/inscription  ·  esc quitter")
+	content := activeStyle.Render("한  KOREAN LEARNING") + "\n\n" + mutedStyle.Render(modeLabel) + "\n\n" + fields + "\n\n" + mutedStyle.Render("tab changer  ·  entrée valider  ·  ctrl+r connexion/inscription  ·  esc quitter")
 	if m.loading {
 		content += "\n" + activeStyle.Render("Connexion...")
 	}
@@ -373,8 +585,9 @@ func (m model) loginView() string {
 
 func (m model) headerView(width int) string {
 	brand := activeStyle.Render("한 KOREAN LEARNING") + "  " + mutedStyle.Render(m.data.User.Name)
-	items := make([]string, 0, len(tabs))
-	for index, tab := range tabs {
+	visibleTabs := m.visibleTabs()
+	items := make([]string, 0, len(visibleTabs))
+	for index, tab := range visibleTabs {
 		if index == m.tab {
 			items = append(items, selectedStyle.Padding(0, 1).Render(tab))
 		} else {
@@ -401,8 +614,10 @@ func (m model) bodyView(width int, height int) string {
 		return m.statsView(width, height)
 	case 5:
 		return m.searchView(width, height)
-	default:
+	case 6:
 		return m.profileView(width, height)
+	default:
+		return m.adminView(width, height)
 	}
 }
 
@@ -412,12 +627,16 @@ func (m model) studyView(width, height int) string {
 	start, end := visibleBounds(len(m.data.Due), m.cursor, height-6)
 	for index, card := range m.data.Due[start:end] {
 		index += start
-		list += listLine(index == m.cursor, card.Korean, card.Translation) + "\n"
+		prompt := card.Korean
+		if m.studyDirection == "french-to-korean" {
+			prompt = card.Translation
+		}
+		list += listLine(index == m.cursor, prompt, "À réviser") + "\n"
 	}
 	if len(m.data.Due) == 0 {
-		list += activeStyle.Render("Session terminee")
+		list += activeStyle.Render("Session terminée")
 	}
-	detail := "REVISION\n\n"
+	detail := "RÉVISION\n\n"
 	if len(m.data.Due) > 0 {
 		card := m.data.Due[m.cursor]
 		prompt, answer := card.Korean, card.Translation
@@ -426,14 +645,15 @@ func (m model) studyView(width, height int) string {
 			prompt, answer, direction = card.Translation, card.Korean, "FR → KO"
 		}
 		detail += mutedStyle.Render(direction+"  ·  v inverser") + "\n\n" + lipgloss.NewStyle().Foreground(text).Bold(true).Render(prompt) + "\n"
-		if m.studyDirection == "korean-to-french" {
-			detail += mutedStyle.Render(card.Romanization) + "\n"
-		}
 		detail += "\n"
 		if m.revealed {
-			detail += activeStyle.Render(answer) + "\n\n" + card.ExampleKorean + "\n" + mutedStyle.Render(card.ExampleTranslation) + "\n\n" + "1 Encore   2 Difficile   3 Correct   4 Facile"
+			detail += activeStyle.Render(answer) + "\n"
+			if card.Romanization != "" {
+				detail += mutedStyle.Render(card.Romanization) + "\n"
+			}
+			detail += "\n" + card.ExampleKorean + "\n" + mutedStyle.Render(card.ExampleTranslation) + "\n\n" + "1 À revoir   2 Avec hésitation   3 Bien retenue   4 Maîtrisée"
 		} else {
-			detail += mutedStyle.Render("a ecrire une reponse  ·  espace reveler")
+			detail += mutedStyle.Render("a écrire une réponse  ·  espace révéler")
 		}
 	}
 	return lipgloss.JoinHorizontal(lipgloss.Top, panelStyle.Width(leftWidth).Height(height-2).Render(list), panelStyle.Width(width-leftWidth-9).Height(height-2).Render(detail))
@@ -462,13 +682,13 @@ func (m model) libraryView(width, height int) string {
 	detail := "DETAIL\n\n"
 	if m.libraryCards && len(m.data.Cards) > 0 {
 		card := m.data.Cards[m.cursor]
-		detail += activeStyle.Render(card.Korean) + "\n" + card.Translation + "\n" + mutedStyle.Render(card.Romanization) + "\n\nDeck: " + card.DeckID + "\nTags: " + strings.Join(card.Tags, ", ") + "\nProchaine revision: " + card.ReviewState.NextReviewAt.Local().Format("02/01 15:04")
+		detail += activeStyle.Render(card.Korean) + "\n" + card.Translation + "\n" + mutedStyle.Render(card.Romanization) + "\n\nDeck: " + card.DeckID + "\nTags: " + strings.Join(card.Tags, ", ") + "\nProchaine révision : " + card.ReviewState.NextReviewAt.Local().Format("02/01 15:04")
 	}
 	if !m.libraryCards && len(m.data.Decks) > 0 {
 		deck := m.data.Decks[m.cursor]
 		detail += activeStyle.Render(deck.Name) + "\n" + deck.Description + "\n\nID: " + deck.ID
 	}
-	detail += "\n\n" + mutedStyle.Render("n nouveau  ·  d supprimer  ·  : commandes avancees")
+	detail += "\n\n" + mutedStyle.Render("n nouveau  ·  d supprimer  ·  : commandes avancées")
 	return lipgloss.JoinHorizontal(lipgloss.Top, panelStyle.Width(leftWidth).Height(height-2).Render(list), panelStyle.Width(width-leftWidth-9).Height(height-2).Render(detail))
 }
 
@@ -478,17 +698,24 @@ func (m model) lessonsView(width, height int) string {
 	start, end := visibleBounds(len(m.data.Lessons), m.cursor, height-6)
 	for index, lesson := range m.data.Lessons[start:end] {
 		index += start
-		state := lesson.Level
+		state := lesson.Level + " · À faire"
 		if lesson.Progress.Completed {
-			state += " ✓"
+			state = lesson.Level + " · Terminée ✓"
 		}
 		list += listLine(index == m.cursor, lesson.Title, state) + "\n"
 	}
-	detail := "LECON\n\n"
+	detail := "LEÇON\n\n"
 	if len(m.data.Lessons) > 0 {
 		lesson := m.data.Lessons[m.cursor]
-		detail += activeStyle.Render(lesson.Title) + "\n" + mutedStyle.Render(lesson.Description) + "\n\n" + lesson.Content + "\n\n" + fmt.Sprintf("Score: %d%%", lesson.Progress.Score) + "\n" + mutedStyle.Render("entree terminer la lecon")
+		detail += lesson.Title + "\n" + lesson.Description + "\n\n" + lesson.Content + "\n\n"
+		if lesson.Progress.Completed {
+			detail += "✓ Leçon terminée"
+		} else {
+			detail += "Entrée : valider la leçon"
+		}
 	}
+	detailWidth := max(24, width-leftWidth-13)
+	detail = scrollableText(detail, detailWidth, max(5, height-6), m.detailScroll)
 	return lipgloss.JoinHorizontal(lipgloss.Top, panelStyle.Width(leftWidth).Height(height-2).Render(list), panelStyle.Width(width-leftWidth-9).Height(height-2).Render(detail))
 }
 
@@ -501,24 +728,25 @@ func (m model) journalView(width, height int) string {
 		list += listLine(index == m.cursor, entry.Title, entry.CreatedAt.Local().Format("02/01/2006")) + "\n"
 	}
 	if len(m.data.Journal) == 0 {
-		list += mutedStyle.Render("Aucune entree")
+		list += mutedStyle.Render("Aucune entrée")
 	}
-	detail := "CORRECTION\n\n"
+	detail := "TEXTE ET SUGGESTIONS\n\n"
 	if len(m.data.Journal) > 0 {
 		entry := m.data.Journal[m.cursor]
-		detail += activeStyle.Render(entry.CorrectedText) + "\n\n" + mutedStyle.Render("Texte original: ") + entry.OriginalText + "\n\n"
+		detail += entry.CorrectedText + "\n\nTexte original : " + entry.OriginalText + "\n\n"
 		for _, correction := range entry.Corrections {
-			detail += redStyle.Render(correction.Original+" → "+correction.Replacement) + "\n" + mutedStyle.Render(correction.Reason) + "\n"
+			detail += correction.Original + " → " + correction.Replacement + "\n" + correction.Reason + "\n"
 		}
 	}
-	detail += "\n" + mutedStyle.Render("n ecrire  ·  d supprimer  ·  : journal-update")
+	detail += "\n" + mutedStyle.Render("n écrire  ·  d supprimer  ·  : journal-update")
+	detail = scrollableText(detail, max(24, width-leftWidth-13), max(5, height-6), m.detailScroll)
 	return lipgloss.JoinHorizontal(lipgloss.Top, panelStyle.Width(leftWidth).Height(height-2).Render(list), panelStyle.Width(width-leftWidth-9).Height(height-2).Render(detail))
 }
 
 func (m model) statsView(width, height int) string {
 	s := m.data.Stats
-	metrics := fmt.Sprintf("PROGRESSION\n\nCartes             %d\nA reviser          %d\nNouvelles          %d\nMaitrisees         %d\nDifficiles         %d\n\nRevisions aujourd'hui  %d\nPrecision              %.0f%%\nSerie actuelle         %d jours\nRecord                  %d jours", s.TotalCards, s.DueCards, s.NewCards, s.MasteredCards, s.DifficultCards, s.ReviewsToday, s.AccuracyPercent, s.CurrentStreak, s.LongestStreak)
-	difficult := "A RENFORCER\n\n"
+	metrics := fmt.Sprintf("PROGRESSION\n\nCartes             %d\nÀ réviser          %d\nNouvelles          %d\nMaîtrisées         %d\nDifficiles         %d\n\nRévisions aujourd'hui  %d\nPrécision              %.0f%%\nSérie actuelle         %d jours\nRecord                  %d jours", s.TotalCards, s.DueCards, s.NewCards, s.MasteredCards, s.DifficultCards, s.ReviewsToday, s.AccuracyPercent, s.CurrentStreak, s.LongestStreak)
+	difficult := "À RENFORCER\n\n"
 	for _, card := range m.data.Difficult {
 		difficult += redStyle.Render(card.Korean) + "  " + card.Translation + fmt.Sprintf("  (%d oublis)\n", card.ReviewState.LapseCount)
 	}
@@ -541,15 +769,70 @@ func (m model) searchView(width, height int) string {
 }
 
 func (m model) profileView(width, height int) string {
-	content := "PROFIL\n\n" + activeStyle.Render(m.data.User.Name) + "\n" + m.data.User.Email + "\nID: " + m.data.User.ID + "\n\n" + mutedStyle.Render(": profile NOM | EMAIL")
-	if m.data.User.IsAdmin {
-		content += "\n\nADMINISTRATION\n\n: admin-user ID | NOM\n: reset CONFIRM\n\nSwagger: " + m.client.BaseURL + "/swagger/index.html"
+	if m.profileEditing {
+		field := func(label, value string, active bool) string {
+			style := panelStyle.Width(min(64, width-14))
+			if active {
+				style = style.BorderForeground(brightGreen)
+			}
+			return style.Render(mutedStyle.Render(label) + "\n" + value)
+		}
+		password := strings.Repeat("•", len([]rune(m.profilePass)))
+		content := "MODIFIER MES INFORMATIONS\n\n"
+		content += field("NOM", m.profileName, m.profileField == 0) + "\n"
+		content += field("EMAIL", m.profileEmail, m.profileField == 1) + "\n"
+		content += field("NOUVEAU MOT DE PASSE (FACULTATIF)", password, m.profileField == 2)
+		content += "\n\n" + mutedStyle.Render("tab champ suivant  ·  entrée continuer/valider  ·  échap annuler")
+		return panelStyle.Width(width - 6).Height(height - 2).Render(content)
 	}
+
+	content := "PROFIL\n\n" + activeStyle.Render(m.data.User.Name) + "\n" + m.data.User.Email + "\nID: " + m.data.User.ID
+	content += "\n\n" + activeStyle.Render("e modifier mes informations")
+	content += "\n" + redStyle.Render("D se déconnecter")
 	return panelStyle.Width(width - 6).Height(height - 2).Render(content)
 }
 
+func (m model) adminView(width, height int) string {
+	if m.adminEditing {
+		field := func(label, value string, active bool) string {
+			style := panelStyle.Width(min(64, width-14))
+			if active {
+				style = style.BorderForeground(brightGreen)
+			}
+			return style.Render(mutedStyle.Render(label) + "\n" + value)
+		}
+		password := strings.Repeat("•", len([]rune(m.adminPass)))
+		content := "MODIFIER UN UTILISATEUR\n\n"
+		content += mutedStyle.Render("Compte : ") + activeStyle.Render(m.adminName) + "  " + m.adminEmail + "\n\n"
+		content += field("NOM", m.adminName, m.adminField == 0) + "\n"
+		content += field("EMAIL", m.adminEmail, m.adminField == 1) + "\n"
+		content += field("NOUVEAU MOT DE PASSE (FACULTATIF)", password, m.adminField == 2)
+		content += "\n\n" + mutedStyle.Render("tab champ suivant  ·  entrée continuer/valider  ·  échap annuler")
+		return panelStyle.Width(width - 6).Height(height - 2).Render(content)
+	}
+
+	leftWidth := max(34, width/2)
+	list := "UTILISATEURS\n\n"
+	start, end := visibleBounds(len(m.data.Users), m.cursor, height-7)
+	for index, user := range m.data.Users[start:end] {
+		index += start
+		list += listLine(index == m.cursor, user.Name, user.Email) + "\n"
+	}
+	if len(m.data.Users) == 0 {
+		list += mutedStyle.Render("Aucun compte non administrateur")
+	}
+
+	detail := "ADMINISTRATION\n\n"
+	if len(m.data.Users) > 0 {
+		user := m.data.Users[m.cursor]
+		detail += activeStyle.Render(user.Name) + "\n" + user.Email + "\nID : " + user.ID + "\n\n" + mutedStyle.Render("e modifier cet utilisateur")
+	}
+	detail += "\n\n" + redStyle.Render("x préparer le reset de la base") + "\n\nSwagger : " + m.client.BaseURL + "/swagger/index.html"
+	return lipgloss.JoinHorizontal(lipgloss.Top, panelStyle.Width(leftWidth).Height(height-2).Render(list), panelStyle.Width(width-leftWidth-9).Height(height-2).Render(detail))
+}
+
 func (m model) helpView(width, height int) string {
-	help := "AIDE\n\n h/l ou ←/→   changer d'onglet\n j/k ou ↑/↓   naviguer\n a             saisir une reponse\n v             inverser KO/FR\n espace        reveler une carte\n 1..4          noter une revision\n n             creer dans la vue active\n d             supprimer l'element actif\n tab           decks/cartes dans la bibliotheque\n /             recherche globale\n :             palette de commandes\n r             actualiser\n ?             fermer l'aide\n q             quitter\n\nCOMMANDES\n deck-add NOM | DESCRIPTION\n deck-update ID | NOM | DESCRIPTION\n decks-description ID1,ID2 | DESCRIPTION\n card-add DECK_ID | COREEN | TRADUCTION | ROMANISATION\n card-update ID | COREEN | TRADUCTION | ROMANISATION\n cards-move ID1,ID2 | DECK_ID\n journal-add TITRE | TEXTE\n journal-update ID | TITRE | TEXTE\n lesson-complete ID | SCORE\n import DECK_ID | FICHIER.csv\n export FICHIER.csv"
+	help := "AIDE\n\n h/l ou ←/→   changer d'onglet\n j/k ou ↑/↓   naviguer\n PgUp/PgDn    faire défiler le détail\n a             saisir une réponse\n v             inverser KO/FR\n espace        révéler une carte\n 1..4          indiquer la mémorisation\n n             créer dans la vue active\n d             supprimer l'élément actif\n e             modifier le profil ou l'utilisateur sélectionné\n D             se déconnecter\n x             préparer le reset administrateur\n tab           decks/cartes dans la bibliothèque\n /             recherche globale\n :             palette de commandes\n r             actualiser\n ?             fermer l'aide\n q             quitter\n\nCOMMANDES\n deck-add NOM | DESCRIPTION\n deck-update ID | NOM | DESCRIPTION\n decks-description ID1,ID2 | DESCRIPTION\n card-add DECK_ID | CORÉEN | TRADUCTION | ROMANISATION\n card-update ID | CORÉEN | TRADUCTION | ROMANISATION\n cards-move ID1,ID2 | DECK_ID\n journal-add TITRE | TEXTE\n journal-update ID | TITRE | TEXTE\n lesson-complete ID\n import DECK_ID | FICHIER.csv\n export FICHIER.csv"
 	return panelStyle.BorderForeground(brightGreen).Width(width - 6).Height(height - 2).Render(help)
 }
 
@@ -568,7 +851,7 @@ func (m model) footerView(width int) string {
 		}
 		status = activeStyle.Render(prefix) + m.input + "█"
 	}
-	hints := mutedStyle.Render(" h/l onglets  j/k naviguer  / chercher  : commandes  ? aide  q quitter ")
+	hints := mutedStyle.Render(" h/l onglets  j/k naviguer  / chercher  : commandes  D déconnexion  ? aide  q quitter ")
 	space := max(1, width-lipgloss.Width(status)-lipgloss.Width(hints)-2)
 	return lipgloss.NewStyle().Background(lipgloss.Color("#0D1512")).Width(width).Render(" " + status + strings.Repeat(" ", space) + hints)
 }
@@ -586,6 +869,8 @@ func (m model) itemCount() int {
 		return len(m.data.Lessons)
 	case 3:
 		return len(m.data.Journal)
+	case 7:
+		return len(m.data.Users)
 	}
 	return 0
 }
@@ -607,6 +892,13 @@ func (m model) deleteCommand() string {
 	return ""
 }
 
+func (m model) visibleTabs() []string {
+	if !m.data.User.IsAdmin {
+		return tabs
+	}
+	return append(append([]string{}, tabs...), "ADMIN")
+}
+
 func loadDashboard(client *APIClient) tea.Cmd {
 	return func() tea.Msg { data, err := client.LoadDashboard(); return dashboardMsg{data: data, err: err} }
 }
@@ -625,7 +917,13 @@ func registerCommand(client *APIClient, name, email, password string) tea.Cmd {
 func answerCommand(client *APIClient, id, rating string) tea.Cmd {
 	return func() tea.Msg {
 		err := client.Answer(id, rating)
-		return mutationMsg{status: "Revision enregistree: " + rating, err: err}
+		labels := map[string]string{
+			"again": "À revoir",
+			"hard":  "Avec hésitation",
+			"good":  "Bien retenue",
+			"easy":  "Maîtrisée",
+		}
+		return mutationMsg{status: "Mémorisation : " + labels[rating], err: err}
 	}
 }
 func checkCommand(client *APIClient, id, answer, direction string) tea.Cmd {
@@ -636,6 +934,17 @@ func checkCommand(client *APIClient, id, answer, direction string) tea.Cmd {
 }
 func executeCommand(client *APIClient, command string) tea.Cmd {
 	return func() tea.Msg { status, err := client.Execute(command); return mutationMsg{status: status, err: err} }
+}
+func updateProfileCommand(client *APIClient, name, email, password string) tea.Cmd {
+	return func() tea.Msg {
+		err := client.UpdateProfile(name, email, password)
+		return mutationMsg{status: "Profil modifié", err: err}
+	}
+}
+func adminUpdateUserCommand(client *APIClient, userID, name, email, password string) tea.Cmd {
+	return func() tea.Msg {
+		return adminUserMsg{err: client.AdminUpdateUser(userID, name, email, password)}
+	}
 }
 func searchCommand(client *APIClient, query string) tea.Cmd {
 	return func() tea.Msg { result, err := client.Search(query); return searchMsg{result: result, err: err} }
@@ -693,6 +1002,46 @@ func min(a, b int) int {
 	}
 	return b
 }
+
+func scrollableText(value string, width, height, offset int) string {
+	lines := wrapText(value, width)
+	if len(lines) <= height {
+		return strings.Join(lines, "\n")
+	}
+
+	contentHeight := max(1, height-1)
+	maxOffset := max(0, len(lines)-contentHeight)
+	offset = clamp(offset, 0, maxOffset)
+	end := min(len(lines), offset+contentHeight)
+	position := fmt.Sprintf("PgUp/PgDn · %d-%d/%d", offset+1, end, len(lines))
+	return strings.Join(lines[offset:end], "\n") + "\n" + mutedStyle.Render(position)
+}
+
+func wrapText(value string, width int) []string {
+	if width <= 0 {
+		return []string{value}
+	}
+	result := make([]string, 0)
+	for _, sourceLine := range strings.Split(value, "\n") {
+		words := strings.Fields(sourceLine)
+		if len(words) == 0 {
+			result = append(result, "")
+			continue
+		}
+		line := words[0]
+		for _, word := range words[1:] {
+			candidate := line + " " + word
+			if lipgloss.Width(candidate) <= width {
+				line = candidate
+				continue
+			}
+			result = append(result, line)
+			line = word
+		}
+		result = append(result, line)
+	}
+	return result
+}
 func envOr(name, fallback string) string {
 	if value := strings.TrimSpace(os.Getenv(name)); value != "" {
 		return value
@@ -700,6 +1049,6 @@ func envOr(name, fallback string) string {
 	return fallback
 }
 func commandHint(tab int) string {
-	hints := []string{"", "deck-add / card-add", "lesson-complete", "journal-add", "export", "", "profile / admin-user / reset"}
-	return "Commande: " + hints[tab]
+	hints := []string{"", "deck-add / card-add", "lesson-complete", "journal-add", "export", "", "profile", "admin-user / reset"}
+	return "Commande : " + hints[tab]
 }
