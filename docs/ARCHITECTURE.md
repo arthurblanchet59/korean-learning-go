@@ -4,7 +4,7 @@
 
 Le projet est decoupe en trois surfaces:
 
-- `backend`: API Gin racine pour le rendu, et ancienne API experimentale dans `apps/backend`.
+- `backend`: API Gin lancee depuis la racine avec `go run .`.
 - `frontend`: experience web confortable pour gerer les contenus.
 - `tui`: experience terminal rapide pour reviser sans ouvrir le navigateur.
 

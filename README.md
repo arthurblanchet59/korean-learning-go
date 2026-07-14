@@ -170,7 +170,6 @@ internal/
   repository/sqlite/     persistance SQLite par domaine
 apps/
   tui/                   client terminal Bubble Tea
-  backend/               ancien prototype PostgreSQL, hors application active
 frontend/                client React/Vite
 packages/core/           modèles et scheduler partagés
 docs/                    architecture, OpenAPI et déploiement
