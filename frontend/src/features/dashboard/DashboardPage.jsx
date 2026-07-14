@@ -15,10 +15,10 @@ import { Sidebar } from "../../shared/ui/Sidebar.jsx";
 
 const titles = {
   study: ["Aujourd'hui", "Révision du jour"],
-  library: ["Collection", "Bibliotheque"],
+  library: ["Collection", "Bibliothèque"],
   lessons: ["Parcours guidé", "Leçons de coréen"],
-  journal: ["Pratique libre", "Journal en coreen"],
-  insights: ["Regularite", "Progression"],
+  journal: ["Pratique libre", "Journal en coréen"],
+  insights: ["Régularité", "Progression"],
   search: ["Retrouver", "Recherche globale"],
   profile: ["Compte", "Mon profil"],
   admin: ["Sécurité", "Administration"]
