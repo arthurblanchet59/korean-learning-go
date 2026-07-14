@@ -265,13 +265,18 @@ Content-Type: application/json
   "csv": "korean,translation,romanization\n사랑,amour,sarang"
 }
 
+### Admin list non-admin users
+GET {{baseUrl}}/admin/users
+Authorization: Bearer {{token}}
+
 ### Admin update non-admin user
 PUT {{baseUrl}}/admin/users/user-id-to-update
 Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
-  "name": "Updated Student"
+  "name": "Updated Student",
+  "email": "updated.student@example.com"
 }
 
 ### Reset database, admin only

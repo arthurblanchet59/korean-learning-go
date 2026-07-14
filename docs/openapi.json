@@ -122,6 +122,29 @@
         }
       }
     },
+    "/admin/users": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "Lister les utilisateurs non administrateurs",
+        "description": "Retourne uniquement les informations publiques des comptes que l'administrateur est autorise a modifier.",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Liste des utilisateurs non administrateurs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/PublicUser" }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
     "/admin/users/{id}": {
       "put": {
         "tags": ["Admin"],

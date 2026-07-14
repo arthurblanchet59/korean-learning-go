@@ -41,6 +41,29 @@ func (store *Store) CreateUser(ctx context.Context, user domain.User) error {
 	return normalizeSQLiteError(err)
 }
 
+func (store *Store) ListUsers(ctx context.Context) ([]domain.User, error) {
+	rows, err := store.db.QueryContext(ctx, `
+		SELECT id, name, email, password_hash, is_admin, created_at, updated_at
+		FROM users
+		WHERE is_admin = 0
+		ORDER BY name COLLATE NOCASE, created_at
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	users := make([]domain.User, 0)
+	for rows.Next() {
+		user, err := scanUser(rows)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, user)
+	}
+	return users, rows.Err()
+}
+
 func (store *Store) FindUserByID(ctx context.Context, id string) (domain.User, error) {
 	row := store.db.QueryRowContext(ctx, `
 		SELECT id, name, email, password_hash, is_admin, created_at, updated_at

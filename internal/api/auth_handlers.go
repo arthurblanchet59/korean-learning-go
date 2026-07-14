@@ -111,6 +111,15 @@ func (handler *Handler) adminUpdateUser(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, user)
 }
 
+func (handler *Handler) adminListUsers(ctx *gin.Context) {
+	users, err := handler.auth.ListUsers(ctx.Request.Context())
+	if err != nil {
+		writeError(ctx, http.StatusInternalServerError, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, users)
+}
+
 func (handler *Handler) resetDatabase(ctx *gin.Context) {
 	result, err := handler.admin.ResetDatabase(ctx.Request.Context())
 	if err != nil {

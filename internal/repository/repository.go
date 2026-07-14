@@ -78,6 +78,7 @@ type AdminRepository interface {
 
 type UserRepository interface {
 	CreateUser(ctx context.Context, user domain.User) error
+	ListUsers(ctx context.Context) ([]domain.User, error)
 	FindUserByID(ctx context.Context, id string) (domain.User, error)
 	FindUserByEmail(ctx context.Context, email string) (domain.User, error)
 	UpdateUser(ctx context.Context, user domain.User) error

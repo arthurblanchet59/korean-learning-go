@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/mail"
 	"strings"
 	"time"
 
@@ -63,8 +64,14 @@ func NewAuthService(users repository.UserRepository, jwtSecret string) *AuthServ
 func (service *AuthService) Register(ctx context.Context, input RegisterInput) (AuthResult, error) {
 	name := strings.TrimSpace(input.Name)
 	email := normalizeEmail(input.Email)
-	if name == "" || email == "" || len(input.Password) < 8 {
-		return AuthResult{}, fmt.Errorf("name, valid email and password with at least 8 characters are required")
+	if len([]rune(name)) < 2 {
+		return AuthResult{}, fmt.Errorf("le nom doit contenir au moins 2 caractères")
+	}
+	if !validEmail(email) {
+		return AuthResult{}, fmt.Errorf("l'adresse email n'est pas valide")
+	}
+	if len([]rune(input.Password)) < 8 {
+		return AuthResult{}, fmt.Errorf("le mot de passe doit contenir au moins 8 caractères")
 	}
 
 	passwordHash, err := hashPassword(input.Password)
@@ -121,6 +128,18 @@ func (service *AuthService) UserByID(ctx context.Context, userID string) (domain
 	}
 
 	return user.Public(), nil
+}
+
+func (service *AuthService) ListUsers(ctx context.Context) ([]domain.PublicUser, error) {
+	users, err := service.users.ListUsers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]domain.PublicUser, 0, len(users))
+	for _, user := range users {
+		result = append(result, user.Public())
+	}
+	return result, nil
 }
 
 func (service *AuthService) UpdateSelf(ctx context.Context, userID string, input UpdateUserInput) (domain.PublicUser, error) {
@@ -220,7 +239,11 @@ func (service *AuthService) applyUserUpdate(user domain.User, input UpdateUserIn
 		user.Name = strings.TrimSpace(input.Name)
 	}
 	if strings.TrimSpace(input.Email) != "" {
-		user.Email = normalizeEmail(input.Email)
+		email := normalizeEmail(input.Email)
+		if !validEmail(email) {
+			return domain.User{}, fmt.Errorf("l'adresse email n'est pas valide")
+		}
+		user.Email = email
 	}
 	if input.Password != "" {
 		if len(input.Password) < 8 {
@@ -243,4 +266,9 @@ func hashPassword(password string) (string, error) {
 
 func normalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
+}
+
+func validEmail(email string) bool {
+	address, err := mail.ParseAddress(email)
+	return err == nil && address.Address == email
 }

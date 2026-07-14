@@ -86,18 +86,18 @@ type bulkDeleteRequest struct {
 
 type registerRequest struct {
 	Name     string `json:"name" binding:"required,min=2,max=80"`
-	Email    string `json:"email" binding:"required,email"`
+	Email    string `json:"email" binding:"required,max=254"`
 	Password string `json:"password" binding:"required,min=8,max=120"`
 }
 
 type loginRequest struct {
-	Email    string `json:"email" binding:"required,email"`
+	Email    string `json:"email" binding:"required,max=254"`
 	Password string `json:"password" binding:"required"`
 }
 
 type updateUserRequest struct {
 	Name     string `json:"name" binding:"omitempty,min=2,max=80"`
-	Email    string `json:"email" binding:"omitempty,email"`
+	Email    string `json:"email" binding:"omitempty,max=254"`
 	Password string `json:"password" binding:"omitempty,min=8,max=120"`
 }
 
@@ -125,6 +125,7 @@ func NewRouter(study *service.StudyService, auth *service.AuthService, adminServ
 
 	admin := router.Group("/admin")
 	admin.Use(handler.authMiddleware(), requireAdmin())
+	admin.GET("/users", handler.adminListUsers)
 	admin.PUT("/users/:id", handler.adminUpdateUser)
 	admin.POST("/reset", handler.resetDatabase)
 	admin.DELETE("/reset", handler.resetDatabase)
