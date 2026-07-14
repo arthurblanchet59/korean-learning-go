@@ -14,9 +14,9 @@ export function AuthPage({ onLogin, onRegister, isLoading, error }) {
     event.preventDefault();
 
     const payload = isRegister
-      ? form
+      ? { ...form, name: form.name.trim(), email: form.email.trim() }
       : {
-          email: form.email,
+          email: form.email.trim(),
           password: form.password
         };
 

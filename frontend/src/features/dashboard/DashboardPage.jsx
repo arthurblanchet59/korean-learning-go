@@ -14,13 +14,14 @@ import { useStudyDashboard } from "./hooks/useStudyDashboard.js";
 import { Sidebar } from "../../shared/ui/Sidebar.jsx";
 
 const titles = {
-  study: ["Aujourd'hui", "Revision du jour"],
+  study: ["Aujourd'hui", "Révision du jour"],
   library: ["Collection", "Bibliotheque"],
   lessons: ["Parcours guidé", "Leçons de coréen"],
   journal: ["Pratique libre", "Journal en coreen"],
   insights: ["Regularite", "Progression"],
   search: ["Retrouver", "Recherche globale"],
-  profile: ["Compte", "Profil et administration"]
+  profile: ["Compte", "Mon profil"],
+  admin: ["Sécurité", "Administration"]
 };
 
 export function DashboardPage({ authToken, currentUser, onLogout, onUpdateProfile }) {
@@ -36,7 +37,7 @@ export function DashboardPage({ authToken, currentUser, onLogout, onUpdateProfil
         {dashboard.error && <div className="error-banner"><strong>Connexion ou operation impossible</strong><span>{dashboard.error}</span><button onClick={dashboard.reload} type="button">Reessayer</button></div>}
 
         {view === "study" && <>
-          <section className="metrics" aria-label="Statistiques du jour"><MetricCard label="A reviser" value={dashboard.stats.dueCards} /><MetricCard label="Nouvelles" value={dashboard.stats.newCards} /><MetricCard label="Difficiles" value={dashboard.stats.difficultCards} /><MetricCard label="Serie" value={`${dashboard.stats.currentStreak} j`} /></section>
+          <section className="metrics" aria-label="Statistiques du jour"><MetricCard label="À réviser" value={dashboard.stats.dueCards} /><MetricCard label="Nouvelles" value={dashboard.stats.newCards} /><MetricCard label="Difficiles" value={dashboard.stats.difficultCards} /><MetricCard label="Série" value={`${dashboard.stats.currentStreak} j`} /></section>
           <section className="study-layout"><ReviewPanel activeIndex={dashboard.activeIndex} card={dashboard.activeCard} isLoading={dashboard.isLoading || dashboard.isMutating} onAnswer={dashboard.answerCard} onCheck={dashboard.checkAnswer} totalCards={dashboard.dueCards.length} /><ReviewQueue activeIndex={dashboard.activeIndex} cards={dashboard.dueCards} isLoading={dashboard.isLoading || dashboard.isMutating} onSelect={dashboard.selectCard} /></section>
         </>}
         {view === "library" && <LibraryPanel cards={dashboard.cards} decks={dashboard.decks} isMutating={dashboard.isMutating} runMutation={dashboard.runMutation} token={authToken} />}
@@ -44,7 +45,8 @@ export function DashboardPage({ authToken, currentUser, onLogout, onUpdateProfil
         {view === "journal" && <JournalPanel entries={dashboard.journal} isMutating={dashboard.isMutating} runMutation={dashboard.runMutation} token={authToken} />}
         {view === "insights" && <InsightsPanel difficultCards={dashboard.difficultCards} stats={dashboard.stats} />}
         {view === "search" && <SearchPanel token={authToken} />}
-        {view === "profile" && <div className="content-stack"><ProfilePanel currentUser={currentUser} onUpdateProfile={onUpdateProfile} />{currentUser?.isAdmin && <AdminPanel isMutating={dashboard.isMutating} runMutation={dashboard.runMutation} token={authToken} />}</div>}
+        {view === "profile" && <ProfilePanel currentUser={currentUser} onLogout={onLogout} onUpdateProfile={onUpdateProfile} />}
+        {view === "admin" && currentUser?.isAdmin && <AdminPanel isMutating={dashboard.isMutating} runMutation={dashboard.runMutation} token={authToken} />}
       </section>
     </main>
   );

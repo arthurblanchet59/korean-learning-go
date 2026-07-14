@@ -1,6 +1,6 @@
 const navItems = [
-  ["study", "Revision"],
-  ["library", "Bibliotheque"],
+  ["study", "Révision"],
+  ["library", "Bibliothèque"],
   ["lessons", "Leçons"],
   ["journal", "Journal"],
   ["insights", "Progression"],
@@ -20,7 +20,7 @@ export function Sidebar({ activeView, apiOnline, currentUser, onLogout, onNaviga
       </div>
 
       <nav className="nav-list">
-        {navItems.map(([id, label]) => (
+        {[...navItems, ...(currentUser?.isAdmin ? [["admin", "Administration"]] : [])].map(([id, label]) => (
           <button
             className={activeView === id ? "nav-item active" : "nav-item"}
             key={id}
@@ -34,14 +34,14 @@ export function Sidebar({ activeView, apiOnline, currentUser, onLogout, onNaviga
 
       <section className="side-panel">
         <span>API</span>
-        <strong data-online={String(apiOnline)}>{apiOnline ? "Connectee" : "Indisponible"}</strong>
+        <strong data-online={String(apiOnline)}>{apiOnline ? "Connectée" : "Indisponible"}</strong>
       </section>
 
       <section className="side-panel user-panel">
         <span>{currentUser?.isAdmin ? "Administrateur" : "Compte"}</span>
         <strong>{currentUser?.name ?? "Utilisateur"}</strong>
         <small>{currentUser?.email}</small>
-        <button type="button" onClick={onLogout}>Deconnexion</button>
+        <button type="button" onClick={onLogout}>Se déconnecter</button>
       </section>
     </aside>
   );

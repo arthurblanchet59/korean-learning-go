@@ -26,7 +26,7 @@ export const importCardsCSV = (deckId, csv, token) => postJSON("/cards/import", 
 export const exportCardsCSV = (token) => getText("/cards/export", token);
 
 export const searchAll = (query, token) => getJSON(`/search?query=${encodeURIComponent(query)}`, { decks: [], cards: [] }, token);
-export const updateLessonProgress = (id, payload, token) => putJSON(`/lessons/${id}/progress`, payload, token);
+export const completeLesson = (id, token) => putJSON(`/lessons/${id}/progress`, { completed: true }, token);
 
 export const createJournalEntry = (payload, token) => postJSON("/journal", payload, token);
 export const previewJournalCorrection = (payload, token) => postJSON("/journal/correct", payload, token);
@@ -34,4 +34,5 @@ export const updateJournalEntry = (id, payload, token) => putJSON(`/journal/${id
 export const deleteJournalEntry = (id, token) => deleteJSON(`/journal/${id}`, undefined, token);
 
 export const resetDatabase = (token) => postJSON("/admin/reset", {}, token);
+export const fetchAdminUsers = (token) => getJSON("/admin/users", [], token);
 export const adminUpdateUser = (id, payload, token) => putJSON(`/admin/users/${id}`, payload, token);

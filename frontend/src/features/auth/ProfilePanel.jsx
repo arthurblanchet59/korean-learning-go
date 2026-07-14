@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 
-export function ProfilePanel({ currentUser, onUpdateProfile }) {
+export function ProfilePanel({ currentUser, onLogout, onUpdateProfile }) {
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     setForm({
@@ -14,9 +15,10 @@ export function ProfilePanel({ currentUser, onUpdateProfile }) {
 
   async function handleSubmit(event) {
     event.preventDefault();
+    setError("");
     const payload = {
-      name: form.name,
-      email: form.email
+      name: form.name.trim(),
+      email: form.email.trim()
     };
     if (form.password) {
       payload.password = form.password;
@@ -24,6 +26,7 @@ export function ProfilePanel({ currentUser, onUpdateProfile }) {
 
     const ok = await onUpdateProfile(payload);
     setSaved(ok);
+    setError(ok ? "" : "La modification du profil a échoué.");
     if (ok) {
       setForm((current) => ({ ...current, password: "" }));
     }
@@ -31,6 +34,7 @@ export function ProfilePanel({ currentUser, onUpdateProfile }) {
 
   function updateField(field, value) {
     setSaved(false);
+    setError("");
     setForm((current) => ({ ...current, [field]: value }));
   }
 
@@ -44,11 +48,11 @@ export function ProfilePanel({ currentUser, onUpdateProfile }) {
       <form className="profile-form" onSubmit={handleSubmit}>
         <label>
           Nom
-          <input value={form.name} onChange={(event) => updateField("name", event.target.value)} />
+          <input required value={form.name} onChange={(event) => updateField("name", event.target.value)} />
         </label>
         <label>
           Email
-          <input type="email" value={form.email} onChange={(event) => updateField("email", event.target.value)} />
+          <input required type="email" value={form.email} onChange={(event) => updateField("email", event.target.value)} />
         </label>
         <label>
           Nouveau mot de passe
@@ -59,11 +63,22 @@ export function ProfilePanel({ currentUser, onUpdateProfile }) {
             onChange={(event) => updateField("password", event.target.value)}
           />
         </label>
-        {saved && <p className="form-success">Profil mis a jour.</p>}
+        {saved && <p className="form-success">Profil mis à jour.</p>}
+        {error && <p className="form-error">{error}</p>}
         <button className="primary-button" type="submit">
-          Enregistrer
+          Modifier mes informations
         </button>
       </form>
+
+      <div className="profile-session">
+        <div>
+          <strong>Session</strong>
+          <p>Déconnecte ce compte de cet appareil.</p>
+        </div>
+        <button className="secondary-button danger-button" onClick={onLogout} type="button">
+          Se déconnecter
+        </button>
+      </div>
     </section>
   );
 }

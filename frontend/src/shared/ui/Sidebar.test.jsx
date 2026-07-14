@@ -16,7 +16,12 @@ describe("Sidebar", () => {
     );
 
     expect(screen.getByRole("button", { name: "Leçons" })).toHaveClass("active");
-    expect(screen.getByText("Connectee")).toHaveAttribute("data-online", "true");
+    expect(screen.getByText("Connectée")).toHaveAttribute("data-online", "true");
+		expect(screen.queryByRole("button", { name: "Administration" })).not.toBeInTheDocument();
   });
-});
 
+	it("shows the administration tab only to an admin", () => {
+		render(<Sidebar activeView="admin" apiOnline currentUser={{ name: "Admin", email: "admin@example.test", isAdmin: true }} onLogout={vi.fn()} onNavigate={vi.fn()} />);
+		expect(screen.getByRole("button", { name: "Administration" })).toHaveClass("active");
+	});
+});
