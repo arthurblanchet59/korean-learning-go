@@ -21,7 +21,8 @@
     { "name": "Search", "description": "Recherche sur les ressources" },
     { "name": "Stats", "description": "Statistiques de revision" },
     { "name": "Lessons", "description": "Lecons guidees et progression personnelle" },
-    { "name": "Journal", "description": "Journal coreen et correction automatique expliquee" }
+    { "name": "Journal", "description": "Journal coreen et correction automatique expliquee" },
+    { "name": "Client backup", "description": "Sauvegarde de la configuration et de l'etat du client TUI" }
   ],
   "paths": {
     "/health": {
@@ -217,6 +218,40 @@
           "200": { "$ref": "#/components/responses/ResetResult" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      }
+    },
+    "/api/client-backup": {
+      "get": {
+        "tags": ["Client backup"],
+        "summary": "Restaurer son backup TUI",
+        "description": "Retourne uniquement la configuration et l'etat associes a l'utilisateur identifie par le JWT.",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Backup personnel",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ClientBackup" } } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "put": {
+        "tags": ["Client backup"],
+        "summary": "Sauvegarder sa configuration et son etat TUI",
+        "description": "Cree ou remplace le backup de l'utilisateur courant. Le token JWT n'est jamais inclus.",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ClientBackupRequest" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "Backup enregistre",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ClientBackup" } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
         }
       }
     },
@@ -908,6 +943,43 @@
           "token": { "type": "string", "description": "JWT a fournir dans Authorization: Bearer <token>" },
           "user": { "$ref": "#/components/schemas/PublicUser" }
         }
+      },
+      "ClientConfig": {
+        "type": "object",
+        "required": ["version", "apiUrl", "theme"],
+        "properties": {
+          "version": { "type": "integer", "example": 1 },
+          "apiUrl": { "type": "string", "format": "uri", "example": "https://example.azurewebsites.net" },
+          "theme": { "type": "string", "enum": ["emerald", "ocean", "amber", "rose"], "example": "ocean" }
+        }
+      },
+      "ClientState": {
+        "type": "object",
+        "required": ["version", "activeView", "studyDirection", "libraryCards"],
+        "properties": {
+          "version": { "type": "integer", "example": 1 },
+          "activeView": { "type": "string", "example": "lessons" },
+          "studyDirection": { "type": "string", "enum": ["korean-to-french", "french-to-korean"] },
+          "libraryCards": { "type": "boolean" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ClientBackupRequest": {
+        "type": "object",
+        "required": ["config", "state"],
+        "properties": {
+          "config": { "$ref": "#/components/schemas/ClientConfig" },
+          "state": { "$ref": "#/components/schemas/ClientState" }
+        }
+      },
+      "ClientBackup": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ClientBackupRequest" },
+          {
+            "type": "object",
+            "properties": { "updatedAt": { "type": "string", "format": "date-time" } }
+          }
+        ]
       },
       "Deck": {
         "type": "object",

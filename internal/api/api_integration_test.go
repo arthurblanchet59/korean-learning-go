@@ -36,7 +36,7 @@ func testRouter(t *testing.T) (*gin.Engine, *sqliterepo.Store) {
 		t.Fatal(err)
 	}
 	study := service.NewStudyService(store, store, store, store, store, core.NewScheduler())
-	return NewRouter(study, auth, service.NewAdminService(store)), store
+	return NewRouter(study, auth, service.NewAdminService(store), service.NewClientBackupService(store)), store
 }
 
 func performJSON(t *testing.T, router http.Handler, method string, path string, body any, token string) *httptest.ResponseRecorder {
@@ -134,6 +134,50 @@ func TestProtectedRouteRejectsMissingToken(t *testing.T) {
 	response := performJSON(t, router, http.MethodGet, "/api/cards", nil, "")
 	if response.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", response.Code)
+	}
+}
+
+func TestClientBackupIsValidatedAndScopedByUser(t *testing.T) {
+	router, _ := testRouter(t)
+	ownerToken := registerLearner(t, router, "backup-owner@example.test")
+	otherToken := registerLearner(t, router, "backup-other@example.test")
+
+	missing := performJSON(t, router, http.MethodGet, "/api/client-backup", nil, ownerToken)
+	if missing.Code != http.StatusNotFound {
+		t.Fatalf("missing backup status=%d body=%s", missing.Code, missing.Body.String())
+	}
+
+	invalid := performJSON(t, router, http.MethodPut, "/api/client-backup", map[string]any{
+		"config": []string{"not", "an", "object"},
+		"state":  map[string]any{"activeView": "home"},
+	}, ownerToken)
+	if invalid.Code != http.StatusBadRequest {
+		t.Fatalf("invalid backup status=%d body=%s", invalid.Code, invalid.Body.String())
+	}
+
+	saved := performJSON(t, router, http.MethodPut, "/api/client-backup", map[string]any{
+		"config": map[string]any{"apiUrl": "https://example.test", "theme": "ocean"},
+		"state":  map[string]any{"activeView": "lessons", "studyDirection": "french-to-korean"},
+	}, ownerToken)
+	if saved.Code != http.StatusOK {
+		t.Fatalf("save backup status=%d body=%s", saved.Code, saved.Body.String())
+	}
+
+	loaded := performJSON(t, router, http.MethodGet, "/api/client-backup", nil, ownerToken)
+	if loaded.Code != http.StatusOK {
+		t.Fatalf("load backup status=%d body=%s", loaded.Code, loaded.Body.String())
+	}
+	var backup map[string]json.RawMessage
+	if err := json.Unmarshal(loaded.Body.Bytes(), &backup); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(backup["config"], []byte(`"theme":"ocean"`)) || !bytes.Contains(backup["state"], []byte(`"activeView":"lessons"`)) {
+		t.Fatalf("unexpected backup: %s", loaded.Body.String())
+	}
+
+	other := performJSON(t, router, http.MethodGet, "/api/client-backup", nil, otherToken)
+	if other.Code != http.StatusNotFound {
+		t.Fatalf("another user accessed backup: status=%d body=%s", other.Code, other.Body.String())
 	}
 }
 

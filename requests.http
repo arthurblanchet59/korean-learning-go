@@ -265,6 +265,30 @@ Content-Type: application/json
   "csv": "korean,translation,romanization\n사랑,amour,sarang"
 }
 
+### Save the authenticated user's TUI config and state
+PUT {{baseUrl}}/api/client-backup
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "config": {
+    "version": 1,
+    "apiUrl": "{{baseUrl}}",
+    "theme": "ocean"
+  },
+  "state": {
+    "version": 1,
+    "activeView": "lessons",
+    "studyDirection": "korean-to-french",
+    "libraryCards": true,
+    "updatedAt": "2026-07-15T08:00:00Z"
+  }
+}
+
+### Restore the authenticated user's TUI config and state
+GET {{baseUrl}}/api/client-backup
+Authorization: Bearer {{token}}
+
 ### Admin list non-admin users
 GET {{baseUrl}}/admin/users
 Authorization: Bearer {{token}}

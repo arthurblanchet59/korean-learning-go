@@ -55,6 +55,11 @@ type JournalRepository interface {
 	DeleteJournalEntry(ctx context.Context, userID string, id string) error
 }
 
+type ClientBackupRepository interface {
+	FindClientBackup(ctx context.Context, userID string) (domain.ClientBackup, error)
+	UpsertClientBackup(ctx context.Context, backup domain.ClientBackup) error
+}
+
 type UserDataSeeder interface {
 	SeedUser(ctx context.Context, userID string) error
 }
