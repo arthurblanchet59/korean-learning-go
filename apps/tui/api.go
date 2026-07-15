@@ -107,6 +107,14 @@ func (client *APIClient) UpdateProfile(name string, email string, password strin
 	return client.do(http.MethodPut, "/user/me", payload, nil)
 }
 
+func (client *APIClient) SaveJournalEntry(id string, title string, text string) error {
+	payload := map[string]string{"title": strings.TrimSpace(title), "text": strings.TrimSpace(text)}
+	if strings.TrimSpace(id) == "" {
+		return client.do(http.MethodPost, "/api/journal", payload, nil)
+	}
+	return client.do(http.MethodPut, "/api/journal/"+url.PathEscape(id), payload, nil)
+}
+
 func (client *APIClient) UploadBackup(config AppConfig, state AppState) (RemoteBackup, error) {
 	var backup RemoteBackup
 	err := client.do(http.MethodPut, "/api/client-backup", map[string]any{

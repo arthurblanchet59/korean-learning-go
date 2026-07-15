@@ -234,6 +234,62 @@ func TestProfileViewExposesEditAndLogoutActions(t *testing.T) {
 	}
 }
 
+func TestJournalViewExposesGuidedActions(t *testing.T) {
+	m := model{data: DashboardData{Journal: []core.JournalEntry{{
+		ID: "journal-1", Title: "Ma journée", OriginalText: "저는 공부해요.", CorrectedText: "저는 공부해요.",
+	}}}}
+	view := m.journalView(110, 28)
+	for _, expected := range []string{"n nouvelle entrée", "e modifier l'entrée", "d supprimer"} {
+		if !strings.Contains(view, expected) {
+			t.Fatalf("journal action %q is missing: %q", expected, view)
+		}
+	}
+	if strings.Contains(view, "journal-update") {
+		t.Fatalf("technical command is still exposed: %q", view)
+	}
+}
+
+func TestJournalEditKeyPrefillsGuidedEditor(t *testing.T) {
+	m := model{
+		tab: tabJournal,
+		data: DashboardData{Journal: []core.JournalEntry{{
+			ID: "journal-1", Title: "Ma journée", OriginalText: "저는 공부해요.",
+		}}},
+	}
+	updated, _ := m.updateNavigation(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}})
+	editor := updated.(model)
+	if !editor.journalEditing || editor.journalID != "journal-1" || editor.journalTitle != "Ma journée" || editor.journalText != "저는 공부해요." {
+		t.Fatalf("journal editor was not prefilled: %#v", editor)
+	}
+	view := editor.journalView(110, 28)
+	if !strings.Contains(view, "MODIFIER L'ENTRÉE DU JOURNAL") || !strings.Contains(view, "TEXTE EN CORÉEN") {
+		t.Fatalf("guided journal editor is incomplete: %q", view)
+	}
+}
+
+func TestSaveJournalEntryUpdatesSelectedEntry(t *testing.T) {
+	var payload map[string]string
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPut || request.URL.Path != "/api/journal/journal-1" {
+			t.Fatalf("unexpected request: %s %s", request.Method, request.URL.Path)
+		}
+		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+			t.Fatal(err)
+		}
+		response.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	client := NewAPIClient(server.URL)
+	client.Token = "test-token"
+	if err := client.SaveJournalEntry("journal-1", " Ma journée ", " 저는 공부해요. "); err != nil {
+		t.Fatal(err)
+	}
+	if payload["title"] != "Ma journée" || payload["text"] != "저는 공부해요." {
+		t.Fatalf("unexpected journal payload: %#v", payload)
+	}
+}
+
 func TestRegisterTrimsUserInput(t *testing.T) {
 	var payload map[string]string
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {

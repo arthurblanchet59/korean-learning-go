@@ -89,6 +89,11 @@ type model struct {
 	adminName      string
 	adminEmail     string
 	adminPass      string
+	journalEditing bool
+	journalField   int
+	journalID      string
+	journalTitle   string
+	journalText    string
 	studyDirection string
 	lastBackupAt   time.Time
 	status         string
@@ -109,6 +114,10 @@ type mutationMsg struct {
 }
 type adminUserMsg struct {
 	err error
+}
+type journalSaveMsg struct {
+	created bool
+	err     error
 }
 type searchMsg struct {
 	result SearchResult
@@ -245,6 +254,21 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			return m, loadDashboard(m.client)
 		}
 		return m, nil
+	case journalSaveMsg:
+		m.loading = false
+		m.err = msg.err
+		if msg.err == nil {
+			m.journalEditing = false
+			m.journalID = ""
+			m.journalTitle = ""
+			m.journalText = ""
+			m.status = "Entrée du journal modifiée"
+			if msg.created {
+				m.status = "Entrée du journal créée et corrigée"
+			}
+			return m, loadDashboard(m.client)
+		}
+		return m, nil
 	case searchMsg:
 		m.loading = false
 		m.err = msg.err
@@ -315,12 +339,61 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		if m.adminEditing {
 			return m.updateAdminUser(msg)
 		}
+		if m.journalEditing {
+			return m.updateJournalEditor(msg)
+		}
 		if m.inputMode != "" {
 			return m.updateInput(msg)
 		}
 		return m.updateNavigation(msg)
 	}
 	return m, nil
+}
+
+func (m model) updateJournalEditor(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch key.Type {
+	case tea.KeyEsc:
+		m.journalEditing = false
+		m.journalID = ""
+		m.journalTitle = ""
+		m.journalText = ""
+		m.err = nil
+	case tea.KeyTab, tea.KeyDown, tea.KeyUp:
+		m.journalField = (m.journalField + 1) % 2
+	case tea.KeyEnter:
+		if m.journalField == 0 {
+			m.journalField = 1
+			return m, nil
+		}
+		if strings.TrimSpace(m.journalText) == "" {
+			m.err = fmt.Errorf("le texte du journal est obligatoire")
+			return m, nil
+		}
+		m.loading, m.err = true, nil
+		return m, saveJournalCommand(m.client, m.journalID, m.journalTitle, m.journalText)
+	case tea.KeyBackspace:
+		m.err = nil
+		if m.journalField == 0 {
+			m.journalTitle = trimLastRune(m.journalTitle)
+		} else {
+			m.journalText = trimLastRune(m.journalText)
+		}
+	case tea.KeyRunes:
+		m.err = nil
+		m.appendJournalInput(string(key.Runes))
+	case tea.KeySpace:
+		m.err = nil
+		m.appendJournalInput(" ")
+	}
+	return m, nil
+}
+
+func (m *model) appendJournalInput(value string) {
+	if m.journalField == 0 {
+		m.journalTitle += value
+	} else {
+		m.journalText += value
+	}
 }
 
 func (m model) updateAdminUser(key tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -631,16 +704,21 @@ func (m model) updateNavigation(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, executeCommand(m.client, "lesson-complete "+m.data.Lessons[m.cursor].ID)
 		}
 	case "n":
-		m.inputMode = "command"
 		switch m.tab {
 		case tabLibrary:
+			m.inputMode = "command"
 			if m.libraryCards {
 				m.input = "card-add "
 			} else {
 				m.input = "deck-add "
 			}
 		case tabJournal:
-			m.input = "journal-add "
+			m.journalEditing = true
+			m.journalField = 0
+			m.journalID = ""
+			m.journalTitle = ""
+			m.journalText = ""
+			m.err = nil
 		}
 	case "e":
 		if m.tab == tabSettings {
@@ -662,6 +740,14 @@ func (m model) updateNavigation(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.adminName = user.Name
 			m.adminEmail = user.Email
 			m.adminPass = ""
+			m.err = nil
+		} else if m.tab == tabJournal && len(m.data.Journal) > 0 {
+			entry := m.data.Journal[m.cursor]
+			m.journalEditing = true
+			m.journalField = 0
+			m.journalID = entry.ID
+			m.journalTitle = entry.Title
+			m.journalText = entry.OriginalText
 			m.err = nil
 		}
 	case "x":
@@ -708,6 +794,7 @@ func (m model) logout() model {
 	m.cursor = 0
 	m.loading = false
 	m.profileEditing = false
+	m.journalEditing = false
 	m.adminEditing = false
 	m.inputMode = ""
 	m.input = ""
@@ -984,6 +1071,25 @@ func (m model) lessonsView(width, height int) string {
 }
 
 func (m model) journalView(width, height int) string {
+	if m.journalEditing {
+		field := func(label, value string, active bool) string {
+			style := panelStyle.Width(min(76, width-14))
+			if active {
+				style = style.BorderForeground(brightGreen)
+			}
+			return style.Render(mutedStyle.Render(label) + "\n" + value)
+		}
+		heading := "NOUVELLE ENTRÉE DU JOURNAL"
+		if m.journalID != "" {
+			heading = "MODIFIER L'ENTRÉE DU JOURNAL"
+		}
+		content := heading + "\n\n"
+		content += field("TITRE (FACULTATIF)", m.journalTitle, m.journalField == 0) + "\n"
+		content += field("TEXTE EN CORÉEN", m.journalText, m.journalField == 1)
+		content += "\n\n" + mutedStyle.Render("tab changer de champ  ·  entrée continuer/enregistrer  ·  échap annuler")
+		return panelStyle.Width(width - 6).Height(height - 2).Render(content)
+	}
+
 	leftWidth := max(32, width/3)
 	list := "MON JOURNAL\n\n"
 	start, end := visibleBounds(len(m.data.Journal), m.cursor, height-6)
@@ -1002,7 +1108,7 @@ func (m model) journalView(width, height int) string {
 			detail += correction.Original + " → " + correction.Replacement + "\n" + correction.Reason + "\n"
 		}
 	}
-	detail += "\n" + mutedStyle.Render("n écrire  ·  d supprimer  ·  : journal-update")
+	detail += "\n" + mutedStyle.Render("n nouvelle entrée  ·  e modifier l'entrée  ·  d supprimer")
 	detail = scrollableText(detail, max(24, width-leftWidth-13), max(5, height-6), m.detailScroll)
 	return lipgloss.JoinHorizontal(lipgloss.Top, panelStyle.Width(leftWidth).Height(height-2).Render(list), panelStyle.Width(width-leftWidth-9).Height(height-2).Render(detail))
 }
@@ -1096,7 +1202,7 @@ func (m model) adminView(width, height int) string {
 }
 
 func (m model) helpView(width, height int) string {
-	help := "AIDE\n\n h/l ou ←/→   changer d'onglet\n j/k ou ↑/↓   naviguer\n PgUp/PgDn    faire défiler le détail\n a             saisir une réponse\n v             inverser KO/FR\n espace        révéler une carte\n 1..4          indiquer la mémorisation\n n             créer dans la vue active\n d             supprimer l'élément actif\n e             modifier l'URL API, le profil ou un utilisateur\n u             envoyer config + état vers le serveur\n o             restaurer config + état depuis le serveur\n D             se déconnecter\n x             préparer le reset administrateur\n tab           decks/cartes dans la bibliothèque\n /             recherche globale\n :             palette de commandes\n r             actualiser\n ?             fermer l'aide\n q             quitter\n\nCOMMANDES\n deck-add NOM | DESCRIPTION\n deck-update ID | NOM | DESCRIPTION\n decks-description ID1,ID2 | DESCRIPTION\n card-add DECK_ID | CORÉEN | TRADUCTION | ROMANISATION\n card-update ID | CORÉEN | TRADUCTION | ROMANISATION\n cards-move ID1,ID2 | DECK_ID\n journal-add TITRE | TEXTE\n journal-update ID | TITRE | TEXTE\n lesson-complete ID\n import DECK_ID | FICHIER.csv\n export FICHIER.csv"
+	help := "AIDE\n\n h/l ou ←/→   changer d'onglet\n j/k ou ↑/↓   naviguer\n PgUp/PgDn    faire défiler le détail\n a             saisir une réponse\n v             inverser KO/FR\n espace        révéler une carte\n 1..4          indiquer la mémorisation\n n             créer dans la vue active\n d             supprimer l'élément actif\n e             modifier l'élément actif, l'URL API ou le profil\n u             envoyer config + état vers le serveur\n o             restaurer config + état depuis le serveur\n D             se déconnecter\n x             préparer le reset administrateur\n tab           decks/cartes dans la bibliothèque\n /             recherche globale\n :             palette de commandes\n r             actualiser\n ?             fermer l'aide\n q             quitter\n\nCOMMANDES AVANCÉES\n deck-add NOM | DESCRIPTION\n deck-update ID | NOM | DESCRIPTION\n decks-description ID1,ID2 | DESCRIPTION\n card-add DECK_ID | CORÉEN | TRADUCTION | ROMANISATION\n card-update ID | CORÉEN | TRADUCTION | ROMANISATION\n cards-move ID1,ID2 | DECK_ID\n lesson-complete ID\n import DECK_ID | FICHIER.csv\n export FICHIER.csv"
 	return panelStyle.BorderForeground(brightGreen).Width(width - 6).Height(height - 2).Render(help)
 }
 
@@ -1351,6 +1457,12 @@ func updateProfileCommand(client *APIClient, name, email, password string) tea.C
 		return mutationMsg{status: "Profil modifié", err: err}
 	}
 }
+func saveJournalCommand(client *APIClient, id, title, text string) tea.Cmd {
+	return func() tea.Msg {
+		err := client.SaveJournalEntry(id, title, text)
+		return journalSaveMsg{created: strings.TrimSpace(id) == "", err: err}
+	}
+}
 func adminUpdateUserCommand(client *APIClient, userID, name, email, password string) tea.Cmd {
 	return func() tea.Msg {
 		return adminUserMsg{err: client.AdminUpdateUser(userID, name, email, password)}
@@ -1494,7 +1606,7 @@ func commandHint(tab int) string {
 	hints := map[int]string{
 		tabLibrary:  "deck-add / card-add",
 		tabLessons:  "lesson-complete",
-		tabJournal:  "journal-add",
+		tabJournal:  "utilise n pour écrire ou e pour modifier",
 		tabSettings: "e URL API / u envoyer / o restaurer",
 		tabAdmin:    "admin-user / reset",
 	}
