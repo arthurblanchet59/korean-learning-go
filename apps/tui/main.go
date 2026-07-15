@@ -92,9 +92,17 @@ type checkMsg struct {
 	err    error
 }
 
+var version = "dev"
+
 func main() {
 	apiURL := flag.String("api", envOr("KOREAN_API_URL", "http://localhost:8080"), "URL du backend")
+	showVersion := flag.Bool("version", false, "Affiche la version et quitte")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Println(version)
+		return
+	}
 
 	client := NewAPIClient(*apiURL)
 	application := model{client: client, loggedIn: client.Token != "", loading: client.Token != "", libraryCards: true, loginEmail: "admin@korean.local", studyDirection: "korean-to-french"}
