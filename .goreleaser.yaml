@@ -28,10 +28,7 @@ archives:
       - tui
     name_template: >-
       {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
-    formats: [tar.gz]
-    format_overrides:
-      - goos: windows
-        formats: [zip]
+    formats: [binary]
 
 checksum:
   name_template: "checksums.txt"
