@@ -94,7 +94,7 @@ espace       révéler une carte
 1 à 4        indiquer si la carte est à revoir, hésitante, retenue ou maîtrisée
 n            créer un élément
 d            supprimer l'élément actif
-e            modifier l'URL API depuis Paramètres
+e            modifier l'élément actif, le profil ou l'URL API
 u            envoyer config.json et state.json vers le serveur
 o            restaurer config.json et state.json depuis le serveur
 /            rechercher
