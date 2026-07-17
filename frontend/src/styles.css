@@ -1327,6 +1327,71 @@ textarea {
   margin-top: 18px;
 }
 
+.correction-sources {
+  border-top: 1px solid #d9e1dc;
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 14px;
+}
+
+.correction-sources > div {
+  display: grid;
+  gap: 8px;
+}
+
+.correction-sources article {
+  background: #edf4f0;
+  border-left: 3px solid #3a8069;
+  border-radius: 6px;
+  padding: 9px 11px;
+}
+
+.correction-sources article span {
+  color: #245c45;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.correction-sources article p {
+  color: #53615b;
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 5px 0 0;
+  white-space: pre-line;
+}
+
+.correction-sources.compact {
+  border: 0;
+  margin: 4px 0;
+  padding: 0;
+}
+
+.correction-sources.compact > strong {
+  display: none;
+}
+
+.rag-admin {
+  align-items: center;
+  background: #edf4f0;
+  border: 1px solid #cfd9d4;
+  border-radius: 8px;
+  display: flex;
+  gap: 24px;
+  justify-content: space-between;
+  margin-top: 24px;
+  padding: 18px;
+}
+
+.rag-admin h3,
+.rag-admin p {
+  margin: 0;
+}
+
+.rag-admin h3 {
+  margin: 4px 0 6px;
+}
+
 @media (max-width: 760px) {
   .admin-users-layout {
     grid-template-columns: 1fr;
@@ -1340,6 +1405,11 @@ textarea {
   }
 
   .admin-danger-zone {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .rag-admin {
     align-items: stretch;
     flex-direction: column;
   }

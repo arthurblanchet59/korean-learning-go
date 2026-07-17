@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { API_BASE_URL } from "../../app/config.js";
-import { adminUpdateUser, fetchAdminUsers, resetDatabase } from "../../shared/api/studyApi.js";
+import { adminUpdateUser, fetchAdminUsers, fetchRAGStatus, reindexRAG, resetDatabase } from "../../shared/api/studyApi.js";
 
 const emptyForm = { name: "", email: "", password: "" };
 
@@ -12,6 +12,8 @@ export function AdminPanel({ isMutating, runMutation, token }) {
   const [form, setForm] = useState(emptyForm);
   const [loadError, setLoadError] = useState("");
   const [saved, setSaved] = useState(false);
+  const [ragStatus, setRAGStatus] = useState({ enabled: false, ready: false, chunkCount: 0 });
+  const [ragError, setRAGError] = useState("");
 
   const selectedUser = users.find((user) => user.id === selectedId);
 
@@ -23,11 +25,19 @@ export function AdminPanel({ isMutating, runMutation, token }) {
         setLoadError(result.error || "Impossible de charger les utilisateurs.");
         return;
       }
-
       const nextUsers = result.data ?? [];
       setUsers(nextUsers);
       setLoadError("");
       if (nextUsers.length > 0) selectUser(nextUsers[0]);
+    });
+    fetchRAGStatus(token).then((result) => {
+      if (!active) return;
+      if (result.ok) {
+        setRAGStatus(result.data);
+        setRAGError("");
+      } else {
+        setRAGError(result.error || "Impossible de charger l'index pédagogique.");
+      }
     });
     return () => { active = false; };
   }, [token]);
@@ -52,13 +62,22 @@ export function AdminPanel({ isMutating, runMutation, token }) {
     event.preventDefault();
     const payload = { name: form.name.trim(), email: form.email.trim() };
     if (form.password) payload.password = form.password;
-
     const result = await runMutation(() => adminUpdateUser(selectedId, payload, token));
     if (!result?.ok) return;
 
     setUsers((current) => current.map((user) => user.id === selectedId ? result.data : user));
     setForm((current) => ({ ...current, name: result.data.name, email: result.data.email, password: "" }));
     setSaved(true);
+  }
+
+  async function reindex() {
+    const result = await runMutation(() => reindexRAG(token));
+    if (result?.ok) {
+      setRAGStatus(result.data);
+      setRAGError("");
+    } else if (result?.error) {
+      setRAGError(result.error);
+    }
   }
 
   async function reset() {
@@ -86,12 +105,7 @@ export function AdminPanel({ isMutating, runMutation, token }) {
             <div className="admin-user-list" aria-label="Comptes non administrateurs">
               <h3>Utilisateurs</h3>
               {users.map((user) => (
-                <button
-                  className={user.id === selectedId ? "selected" : ""}
-                  key={user.id}
-                  onClick={() => selectUser(user)}
-                  type="button"
-                >
+                <button className={user.id === selectedId ? "selected" : ""} key={user.id} onClick={() => selectUser(user)} type="button">
                   <strong>{user.name}</strong>
                   <span>{user.email}</span>
                 </button>
@@ -100,21 +114,12 @@ export function AdminPanel({ isMutating, runMutation, token }) {
 
             <form className="admin-user-form" onSubmit={submit}>
               <div className="admin-editor-heading">
-                <div>
-                  <p className="eyebrow">Compte sélectionné</p>
-                  <h3>{selectedUser?.name}</h3>
-                </div>
+                <div><p className="eyebrow">Compte sélectionné</p><h3>{selectedUser?.name}</h3></div>
                 <span>Utilisateur</span>
               </div>
-              <label>Nom
-                <input minLength="2" onChange={(event) => updateField("name", event.target.value)} required value={form.name} />
-              </label>
-              <label>Email
-                <input onChange={(event) => updateField("email", event.target.value)} required type="email" value={form.email} />
-              </label>
-              <label>Nouveau mot de passe
-                <input minLength="8" onChange={(event) => updateField("password", event.target.value)} placeholder="Laisser vide pour ne pas le changer" type="password" value={form.password} />
-              </label>
+              <label>Nom<input minLength="2" onChange={(event) => updateField("name", event.target.value)} required value={form.name} /></label>
+              <label>Email<input onChange={(event) => updateField("email", event.target.value)} required type="email" value={form.email} /></label>
+              <label>Nouveau mot de passe<input minLength="8" onChange={(event) => updateField("password", event.target.value)} placeholder="Laisser vide pour ne pas le changer" type="password" value={form.password} /></label>
               {saved && <p className="form-success">Utilisateur mis à jour.</p>}
               <div className="button-row admin-form-actions">
                 <button className="secondary-button" onClick={cancelChanges} type="button">Annuler les modifications</button>
@@ -124,10 +129,21 @@ export function AdminPanel({ isMutating, runMutation, token }) {
           </div>
         )}
 
+        <div className="rag-admin">
+          <div>
+            <p className="eyebrow">Correction du journal</p>
+            <h3>Index pédagogique</h3>
+            {!ragStatus.enabled && <p>Le RAG n'est pas configuré sur ce serveur.</p>}
+            {ragStatus.enabled && <p><strong>{ragStatus.ready ? "Prêt" : "À construire"}</strong> · {ragStatus.chunkCount} passage(s){ragStatus.embeddingModel && <> · {ragStatus.embeddingModel}</>}</p>}
+            {ragError && <p className="form-error">{ragError}</p>}
+          </div>
+          {ragStatus.enabled && <button className="secondary-button" onClick={reindex} type="button">Reconstruire l'index</button>}
+        </div>
+
         <div className="danger-zone admin-danger-zone">
           <div>
             <h3>Réinitialiser la base</h3>
-            <p>Supprime les données d’apprentissage et tous les comptes non administrateurs. Le compte administrateur est conservé.</p>
+            <p>Supprime les données d'apprentissage et tous les comptes non administrateurs. Le compte administrateur est conservé.</p>
           </div>
           <button className="danger-button" onClick={reset} type="button">Réinitialiser</button>
         </div>

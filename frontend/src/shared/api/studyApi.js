@@ -7,6 +7,7 @@ export const fetchDifficultCards = (token) => getJSON("/cards/difficult", [], to
 export const fetchDecks = (token) => getJSON("/decks", [], token);
 export const fetchLessons = (token) => getJSON("/lessons", [], token);
 export const fetchJournal = (token) => getJSON("/journal", [], token);
+export const fetchRAGStatus = (token) => getJSON("/rag/status", { enabled: false, ready: false, chunkCount: 0 }, token);
 
 export const answerReviewCard = (id, rating, token) => postJSON(`/reviews/${id}/answer`, { rating }, token);
 export const checkCardAnswer = (id, answer, direction, token) => postJSON(`/study/cards/${id}/check`, { answer, direction }, token);
@@ -36,3 +37,4 @@ export const deleteJournalEntry = (id, token) => deleteJSON(`/journal/${id}`, un
 export const resetDatabase = (token) => postJSON("/admin/reset", {}, token);
 export const fetchAdminUsers = (token) => getJSON("/admin/users", [], token);
 export const adminUpdateUser = (id, payload, token) => putJSON(`/admin/users/${id}`, payload, token);
+export const reindexRAG = (token) => postJSON("/admin/rag/reindex", {}, token);

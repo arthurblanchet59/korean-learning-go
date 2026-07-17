@@ -308,6 +308,38 @@ func TestRegisterTrimsUserInput(t *testing.T) {
 	}
 }
 
+func TestJournalViewShowsRAGSources(t *testing.T) {
+	m := model{data: DashboardData{Journal: []core.JournalEntry{{
+		ID:            "journal-rag",
+		Title:         "Test RAG",
+		OriginalText:  "저는 학생이에요",
+		CorrectedText: "저는 학생이에요.",
+		Sources: []core.CorrectionSource{{
+			ID: "grammar-topic-01", Title: "Les particules", Level: "A1", Excerpt: "은/는 indique le thème.",
+		}},
+	}}}}
+	view := m.journalView(120, 32)
+	for _, expected := range []string{"LEÇONS UTILISÉES", "A1 · Les particules", "은/는 indique le thème."} {
+		if !strings.Contains(view, expected) {
+			t.Fatalf("RAG source %q is missing: %q", expected, view)
+		}
+	}
+}
+
+func TestAdminViewShowsRAGIndexStatus(t *testing.T) {
+	m := model{
+		client: &APIClient{BaseURL: "http://localhost:8080"},
+		data: DashboardData{
+			User: User{IsAdmin: true},
+			RAG:  KnowledgeIndexStatus{Enabled: true, Ready: true, ChunkCount: 42, EmbeddingModel: "embed-v-4-0"},
+		},
+	}
+	view := m.adminView(120, 30)
+	if !strings.Contains(view, "INDEX PÉDAGOGIQUE") || !strings.Contains(view, "Prêt · 42 passages") || !strings.Contains(view, "i reconstruire l'index") {
+		t.Fatalf("RAG admin status is missing: %q", view)
+	}
+}
+
 func TestRegistrationFormSubmitsDisplayedValues(t *testing.T) {
 	var payload map[string]string
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {

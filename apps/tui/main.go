@@ -755,6 +755,11 @@ func (m model) updateNavigation(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.inputMode = "command"
 			m.input = "reset CONFIRM"
 		}
+	case "i":
+		if m.tab == tabAdmin && m.data.User.IsAdmin && m.data.RAG.Enabled {
+			m.loading = true
+			return m, executeCommand(m.client, "rag-reindex")
+		}
 	case "d":
 		if command := m.deleteCommand(); command != "" {
 			m.loading = true
@@ -1107,6 +1112,12 @@ func (m model) journalView(width, height int) string {
 		for _, correction := range entry.Corrections {
 			detail += correction.Original + " → " + correction.Replacement + "\n" + correction.Reason + "\n"
 		}
+		if len(entry.Sources) > 0 {
+			detail += "\nLEÇONS UTILISÉES\n"
+			for _, source := range entry.Sources {
+				detail += fmt.Sprintf("\n%s · %s\n%s\n", source.Level, source.Title, source.Excerpt)
+			}
+		}
 	}
 	detail += "\n" + mutedStyle.Render("n nouvelle entrée  ·  e modifier l'entrée  ·  d supprimer")
 	detail = scrollableText(detail, max(24, width-leftWidth-13), max(5, height-6), m.detailScroll)
@@ -1197,12 +1208,21 @@ func (m model) adminView(width, height int) string {
 		user := m.data.Users[m.cursor]
 		detail += activeStyle.Render(user.Name) + "\n" + user.Email + "\nID : " + user.ID + "\n\n" + mutedStyle.Render("e modifier cet utilisateur")
 	}
+	detail += "\n\nINDEX PÉDAGOGIQUE\n"
+	if !m.data.RAG.Enabled {
+		detail += mutedStyle.Render("RAG non configuré")
+	} else if m.data.RAG.Ready {
+		detail += activeStyle.Render(fmt.Sprintf("Prêt · %d passages", m.data.RAG.ChunkCount))
+		detail += "\n" + mutedStyle.Render("i reconstruire l'index")
+	} else {
+		detail += mutedStyle.Render("À construire · i lancer l'indexation")
+	}
 	detail += "\n\n" + redStyle.Render("x préparer le reset de la base") + "\n\nSwagger : " + m.client.BaseURL + "/swagger/index.html"
 	return lipgloss.JoinHorizontal(lipgloss.Top, panelStyle.Width(leftWidth).Height(height-2).Render(list), panelStyle.Width(width-leftWidth-9).Height(height-2).Render(detail))
 }
 
 func (m model) helpView(width, height int) string {
-	help := "AIDE\n\n h/l ou ←/→   changer d'onglet\n j/k ou ↑/↓   naviguer\n PgUp/PgDn    faire défiler le détail\n a             saisir une réponse\n v             inverser KO/FR\n espace        révéler une carte\n 1..4          indiquer la mémorisation\n n             créer dans la vue active\n d             supprimer l'élément actif\n e             modifier l'élément actif, l'URL API ou le profil\n u             envoyer config + état vers le serveur\n o             restaurer config + état depuis le serveur\n D             se déconnecter\n x             préparer le reset administrateur\n tab           decks/cartes dans la bibliothèque\n /             recherche globale\n :             palette de commandes\n r             actualiser\n ?             fermer l'aide\n q             quitter\n\nCOMMANDES AVANCÉES\n deck-add NOM | DESCRIPTION\n deck-update ID | NOM | DESCRIPTION\n decks-description ID1,ID2 | DESCRIPTION\n card-add DECK_ID | CORÉEN | TRADUCTION | ROMANISATION\n card-update ID | CORÉEN | TRADUCTION | ROMANISATION\n cards-move ID1,ID2 | DECK_ID\n lesson-complete ID\n import DECK_ID | FICHIER.csv\n export FICHIER.csv"
+	help := "AIDE\n\n h/l ou ←/→   changer d'onglet\n j/k ou ↑/↓   naviguer\n PgUp/PgDn    faire défiler le détail\n a             saisir une réponse\n v             inverser KO/FR\n espace        révéler une carte\n 1..4          indiquer la mémorisation\n n             créer dans la vue active\n d             supprimer l'élément actif\n e             modifier l'élément actif, l'URL API ou le profil\n i             reconstruire l'index RAG (admin)\n u             envoyer config + état vers le serveur\n o             restaurer config + état depuis le serveur\n D             se déconnecter\n x             préparer le reset administrateur\n tab           decks/cartes dans la bibliothèque\n /             recherche globale\n :             palette de commandes\n r             actualiser\n ?             fermer l'aide\n q             quitter\n\nCOMMANDES AVANCÉES\n deck-add NOM | DESCRIPTION\n deck-update ID | NOM | DESCRIPTION\n decks-description ID1,ID2 | DESCRIPTION\n card-add DECK_ID | CORÉEN | TRADUCTION | ROMANISATION\n card-update ID | CORÉEN | TRADUCTION | ROMANISATION\n cards-move ID1,ID2 | DECK_ID\n lesson-complete ID\n import DECK_ID | FICHIER.csv\n export FICHIER.csv\n rag-reindex"
 	return panelStyle.BorderForeground(brightGreen).Width(width - 6).Height(height - 2).Render(help)
 }
 

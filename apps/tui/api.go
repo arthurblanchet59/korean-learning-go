@@ -40,6 +40,15 @@ type Lesson struct {
 	Progress core.LessonProgress `json:"progress"`
 }
 
+type KnowledgeIndexStatus struct {
+	Enabled        bool      `json:"enabled"`
+	Ready          bool      `json:"ready"`
+	EmbeddingModel string    `json:"embeddingModel"`
+	Dimensions     int       `json:"dimensions"`
+	ChunkCount     int       `json:"chunkCount"`
+	UpdatedAt      time.Time `json:"updatedAt"`
+}
+
 type DashboardData struct {
 	User      User
 	Users     []User
@@ -50,6 +59,7 @@ type DashboardData struct {
 	Decks     []core.Deck
 	Lessons   []Lesson
 	Journal   []core.JournalEntry
+	RAG       KnowledgeIndexStatus
 }
 
 type SearchResult struct {
@@ -58,7 +68,7 @@ type SearchResult struct {
 }
 
 func NewAPIClient(baseURL string) *APIClient {
-	return &APIClient{BaseURL: strings.TrimRight(baseURL, "/"), Token: loadToken(), HTTP: &http.Client{Timeout: 12 * time.Second}}
+	return &APIClient{BaseURL: strings.TrimRight(baseURL, "/"), Token: loadToken(), HTTP: &http.Client{Timeout: 35 * time.Second}}
 }
 
 func (client *APIClient) Login(email string, password string) (AuthResult, error) {
@@ -138,6 +148,12 @@ func (client *APIClient) AdminUpdateUser(userID string, name string, email strin
 	return client.do(http.MethodPut, "/admin/users/"+url.PathEscape(userID), payload, nil)
 }
 
+func (client *APIClient) ReindexKnowledge() (KnowledgeIndexStatus, error) {
+	var status KnowledgeIndexStatus
+	err := client.do(http.MethodPost, "/admin/rag/reindex", map[string]any{}, &status)
+	return status, err
+}
+
 func cleanNameInput(value string) string {
 	return strings.TrimSpace(strings.Map(func(character rune) rune {
 		if unicode.IsControl(character) || unicode.Is(unicode.Cf, character) {
@@ -173,6 +189,7 @@ func (client *APIClient) LoadDashboard() (DashboardData, error) {
 		{"/api/stats", &data.Stats}, {"/api/reviews/due", &data.Due},
 		{"/api/cards", &data.Cards}, {"/api/cards/difficult", &data.Difficult}, {"/api/decks", &data.Decks},
 		{"/api/lessons", &data.Lessons}, {"/api/journal", &data.Journal},
+		{"/api/rag/status", &data.RAG},
 	}
 	for _, request := range requests {
 		if err := client.do(http.MethodGet, request.path, nil, request.out); err != nil {
@@ -296,6 +313,12 @@ func (client *APIClient) Execute(command string) (string, error) {
 			return "", fmt.Errorf("utilise reset CONFIRM")
 		}
 		return "Base réinitialisée", client.do(http.MethodPost, "/admin/reset", map[string]any{}, nil)
+	case "rag-reindex":
+		status, err := client.ReindexKnowledge()
+		if err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("Index pédagogique reconstruit : %d passages", status.ChunkCount), nil
 	case "export":
 		if argument == "" {
 			argument = "korean-cards.csv"
