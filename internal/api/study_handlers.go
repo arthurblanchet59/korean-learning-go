@@ -1,12 +1,10 @@
 package api
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/arthurblanchet59/korean-learning-go/internal/repository"
 	"github.com/arthurblanchet59/korean-learning-go/internal/service"
 	"github.com/arthurblanchet59/korean-learning-go/packages/core"
 )
@@ -14,7 +12,7 @@ import (
 func (handler *Handler) listDecks(ctx *gin.Context) {
 	decks, err := handler.study.ListDecks(ctx.Request.Context(), currentUserID(ctx))
 	if err != nil {
-		writeError(ctx, http.StatusInternalServerError, err)
+		writeInternalError(ctx, err)
 		return
 	}
 
@@ -24,7 +22,7 @@ func (handler *Handler) listDecks(ctx *gin.Context) {
 func (handler *Handler) searchDecks(ctx *gin.Context) {
 	results, err := handler.study.SearchDecks(ctx.Request.Context(), currentUserID(ctx), ctx.Query("query"))
 	if err != nil {
-		writeError(ctx, http.StatusInternalServerError, err)
+		writeInternalError(ctx, err)
 		return
 	}
 
@@ -34,7 +32,7 @@ func (handler *Handler) searchDecks(ctx *gin.Context) {
 func (handler *Handler) searchAll(ctx *gin.Context) {
 	results, err := handler.study.SearchAll(ctx.Request.Context(), currentUserID(ctx), ctx.Query("query"))
 	if err != nil {
-		writeError(ctx, http.StatusInternalServerError, err)
+		writeInternalError(ctx, err)
 		return
 	}
 
@@ -130,7 +128,7 @@ func (handler *Handler) deleteDecks(ctx *gin.Context) {
 func (handler *Handler) listCards(ctx *gin.Context) {
 	cards, err := handler.study.ListCards(ctx.Request.Context(), currentUserID(ctx))
 	if err != nil {
-		writeError(ctx, http.StatusInternalServerError, err)
+		writeInternalError(ctx, err)
 		return
 	}
 
@@ -140,7 +138,7 @@ func (handler *Handler) listCards(ctx *gin.Context) {
 func (handler *Handler) searchCards(ctx *gin.Context) {
 	results, err := handler.study.SearchCards(ctx.Request.Context(), currentUserID(ctx), ctx.Query("query"))
 	if err != nil {
-		writeError(ctx, http.StatusInternalServerError, err)
+		writeInternalError(ctx, err)
 		return
 	}
 
@@ -233,7 +231,7 @@ func (handler *Handler) deleteCards(ctx *gin.Context) {
 func (handler *Handler) listDueCards(ctx *gin.Context) {
 	cards, err := handler.study.DueCards(ctx.Request.Context(), currentUserID(ctx))
 	if err != nil {
-		writeError(ctx, http.StatusInternalServerError, err)
+		writeInternalError(ctx, err)
 		return
 	}
 
@@ -243,7 +241,7 @@ func (handler *Handler) listDueCards(ctx *gin.Context) {
 func (handler *Handler) listDifficultCards(ctx *gin.Context) {
 	cards, err := handler.study.DifficultCards(ctx.Request.Context(), currentUserID(ctx))
 	if err != nil {
-		writeError(ctx, http.StatusInternalServerError, err)
+		writeInternalError(ctx, err)
 		return
 	}
 
@@ -253,7 +251,7 @@ func (handler *Handler) listDifficultCards(ctx *gin.Context) {
 func (handler *Handler) stats(ctx *gin.Context) {
 	stats, err := handler.study.Stats(ctx.Request.Context(), currentUserID(ctx))
 	if err != nil {
-		writeError(ctx, http.StatusInternalServerError, err)
+		writeInternalError(ctx, err)
 		return
 	}
 
@@ -269,12 +267,7 @@ func (handler *Handler) answerCard(ctx *gin.Context) {
 
 	review, err := handler.study.AnswerCard(ctx.Request.Context(), currentUserID(ctx), ctx.Param("id"), payload.Rating)
 	if err != nil {
-		status := http.StatusBadRequest
-		if errors.Is(err, repository.ErrNotFound) {
-			status = http.StatusNotFound
-		}
-
-		writeError(ctx, status, err)
+		writeResourceError(ctx, err)
 		return
 	}
 
@@ -299,7 +292,7 @@ func (handler *Handler) checkAnswer(ctx *gin.Context) {
 func (handler *Handler) exportCards(ctx *gin.Context) {
 	content, err := handler.study.ExportCardsCSV(ctx.Request.Context(), currentUserID(ctx))
 	if err != nil {
-		writeError(ctx, http.StatusInternalServerError, err)
+		writeInternalError(ctx, err)
 		return
 	}
 	ctx.Header("Content-Disposition", `attachment; filename="korean-cards.csv"`)

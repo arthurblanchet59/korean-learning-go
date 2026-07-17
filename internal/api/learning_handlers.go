@@ -11,7 +11,7 @@ import (
 func (handler *Handler) listLessons(ctx *gin.Context) {
 	lessons, err := handler.study.ListLessons(ctx.Request.Context(), currentUserID(ctx))
 	if err != nil {
-		writeError(ctx, http.StatusInternalServerError, err)
+		writeInternalError(ctx, err)
 		return
 	}
 	ctx.JSON(http.StatusOK, lessons)
@@ -43,7 +43,7 @@ func (handler *Handler) updateLessonProgress(ctx *gin.Context) {
 func (handler *Handler) listJournalEntries(ctx *gin.Context) {
 	entries, err := handler.study.ListJournalEntries(ctx.Request.Context(), currentUserID(ctx))
 	if err != nil {
-		writeError(ctx, http.StatusInternalServerError, err)
+		writeInternalError(ctx, err)
 		return
 	}
 	ctx.JSON(http.StatusOK, entries)

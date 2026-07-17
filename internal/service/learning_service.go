@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/csv"
-	"fmt"
 	"strings"
 	"time"
 	"unicode"
@@ -42,7 +41,7 @@ func (service *StudyService) CheckAnswer(ctx context.Context, userID string, car
 	case "french-to-korean":
 		expected = card.Korean
 	default:
-		return core.AnswerCheck{}, fmt.Errorf("direction must be korean-to-french or french-to-korean")
+		return core.AnswerCheck{}, validationErrorf("direction must be korean-to-french or french-to-korean")
 	}
 
 	return core.AnswerCheck{
@@ -76,10 +75,10 @@ func (service *StudyService) ImportCardsCSV(ctx context.Context, userID string, 
 	reader := csv.NewReader(strings.NewReader(content))
 	records, err := reader.ReadAll()
 	if err != nil {
-		return nil, fmt.Errorf("invalid csv: %w", err)
+		return nil, validationErrorf("invalid csv: %v", err)
 	}
 	if len(records) < 2 {
-		return nil, fmt.Errorf("csv must contain a header and at least one card")
+		return nil, validationErrorf("csv must contain a header and at least one card")
 	}
 
 	headers := map[string]int{}
@@ -115,7 +114,7 @@ func (service *StudyService) ImportCardsCSV(ctx context.Context, userID string, 
 			Tags:               strings.FieldsFunc(value(record, "tags"), func(r rune) bool { return r == '|' || r == ',' }),
 		})
 		if err != nil {
-			return nil, fmt.Errorf("csv row %d: %w", rowIndex+2, err)
+			return nil, validationErrorf("csv row %d: %v", rowIndex+2, err)
 		}
 		card.ID = uuid.NewString()
 		card.UserID = userID
@@ -155,7 +154,7 @@ func (service *StudyService) LessonByID(ctx context.Context, userID string, id s
 
 func (service *StudyService) UpdateLessonProgress(ctx context.Context, userID string, lessonID string, completed bool, score int) (core.LessonProgress, error) {
 	if score < 0 || score > 100 {
-		return core.LessonProgress{}, fmt.Errorf("score must be between 0 and 100")
+		return core.LessonProgress{}, validationErrorf("score must be between 0 and 100")
 	}
 	if _, _, err := service.lessons.FindLessonByID(ctx, userID, lessonID); err != nil {
 		return core.LessonProgress{}, err
@@ -177,7 +176,7 @@ func (service *StudyService) JournalEntryByID(ctx context.Context, userID string
 
 func (service *StudyService) CreateJournalEntry(ctx context.Context, userID string, input JournalInput) (core.JournalEntry, error) {
 	if strings.TrimSpace(input.Text) == "" {
-		return core.JournalEntry{}, fmt.Errorf("journal text is required")
+		return core.JournalEntry{}, validationErrorf("journal text is required")
 	}
 	corrected, corrections := CorrectKorean(input.Text)
 	now := service.now()
@@ -194,7 +193,7 @@ func (service *StudyService) UpdateJournalEntry(ctx context.Context, userID stri
 		return core.JournalEntry{}, err
 	}
 	if strings.TrimSpace(input.Text) == "" {
-		return core.JournalEntry{}, fmt.Errorf("journal text is required")
+		return core.JournalEntry{}, validationErrorf("journal text is required")
 	}
 	entry.Title = journalTitle(input.Title, entry.CreatedAt)
 	entry.OriginalText = strings.TrimSpace(input.Text)

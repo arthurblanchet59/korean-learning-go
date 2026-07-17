@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -100,7 +99,7 @@ func (service *StudyService) DeckByID(ctx context.Context, userID string, id str
 func (service *StudyService) CreateDeck(ctx context.Context, userID string, input DeckInput) (core.Deck, error) {
 	name := strings.TrimSpace(input.Name)
 	if name == "" {
-		return core.Deck{}, fmt.Errorf("deck name is required")
+		return core.Deck{}, validationErrorf("deck name is required")
 	}
 
 	deck := core.Deck{
@@ -136,7 +135,7 @@ func (service *StudyService) UpdateDeck(ctx context.Context, userID string, id s
 func (service *StudyService) UpdateDecks(ctx context.Context, userID string, ids []string, input DeckPatchInput) ([]core.Deck, error) {
 	cleaned := cleanIDs(ids)
 	if len(cleaned) == 0 {
-		return nil, fmt.Errorf("at least one id is required")
+		return nil, validationErrorf("at least one id is required")
 	}
 
 	updated := make([]core.Deck, 0, len(cleaned))
@@ -163,7 +162,7 @@ func (service *StudyService) DeleteDeck(ctx context.Context, userID string, id s
 func (service *StudyService) DeleteDecks(ctx context.Context, userID string, ids []string) (int, error) {
 	cleaned := cleanIDs(ids)
 	if len(cleaned) == 0 {
-		return 0, fmt.Errorf("at least one id is required")
+		return 0, validationErrorf("at least one id is required")
 	}
 
 	return service.decks.DeleteDecks(ctx, userID, cleaned)
@@ -219,7 +218,7 @@ func (service *StudyService) applyCardPatch(ctx context.Context, userID string, 
 	if input.DeckID != nil {
 		deckID := strings.TrimSpace(*input.DeckID)
 		if deckID == "" {
-			return fmt.Errorf("deckId cannot be empty")
+			return validationErrorf("deckId cannot be empty")
 		}
 		if _, err := service.decks.FindDeckByID(ctx, userID, deckID); err != nil {
 			return err
@@ -251,7 +250,7 @@ func (service *StudyService) applyCardPatch(ctx context.Context, userID string, 
 		card.Tags = cleanTags(*input.Tags)
 	}
 	if card.Korean == "" || card.Translation == "" {
-		return fmt.Errorf("korean and translation are required")
+		return validationErrorf("korean and translation are required")
 	}
 	return nil
 }
@@ -259,7 +258,7 @@ func (service *StudyService) applyCardPatch(ctx context.Context, userID string, 
 func (service *StudyService) UpdateCards(ctx context.Context, userID string, ids []string, input CardPatchInput) ([]core.Card, error) {
 	cleaned := cleanIDs(ids)
 	if len(cleaned) == 0 {
-		return nil, fmt.Errorf("at least one id is required")
+		return nil, validationErrorf("at least one id is required")
 	}
 
 	updated := make([]core.Card, 0, len(cleaned))
@@ -286,7 +285,7 @@ func (service *StudyService) DeleteCard(ctx context.Context, userID string, id s
 func (service *StudyService) DeleteCards(ctx context.Context, userID string, ids []string) (int, error) {
 	cleaned := cleanIDs(ids)
 	if len(cleaned) == 0 {
-		return 0, fmt.Errorf("at least one id is required")
+		return 0, validationErrorf("at least one id is required")
 	}
 
 	return service.cards.DeleteCards(ctx, userID, cleaned)
@@ -364,7 +363,7 @@ func applyDeckPatch(deck *core.Deck, input DeckPatchInput) error {
 	if input.Name != nil {
 		name := strings.TrimSpace(*input.Name)
 		if name == "" {
-			return fmt.Errorf("deck name cannot be empty")
+			return validationErrorf("deck name cannot be empty")
 		}
 		deck.Name = name
 	}
@@ -377,7 +376,7 @@ func applyDeckPatch(deck *core.Deck, input DeckPatchInput) error {
 func (service *StudyService) cardFromInput(ctx context.Context, userID string, input CardInput) (core.Card, error) {
 	deckID := strings.TrimSpace(input.DeckID)
 	if deckID == "" {
-		return core.Card{}, fmt.Errorf("deckId is required")
+		return core.Card{}, validationErrorf("deckId is required")
 	}
 	if _, err := service.decks.FindDeckByID(ctx, userID, deckID); err != nil {
 		return core.Card{}, err
@@ -397,7 +396,7 @@ func (service *StudyService) cardFromInput(ctx context.Context, userID string, i
 		Tags:               cleanTags(input.Tags),
 	}
 	if card.Korean == "" || card.Translation == "" {
-		return core.Card{}, fmt.Errorf("korean and translation are required")
+		return core.Card{}, validationErrorf("korean and translation are required")
 	}
 
 	return card, nil
@@ -408,7 +407,7 @@ func validateCardKind(kind core.CardKind) error {
 	case core.CardKindVocabulary, core.CardKindPhrase, core.CardKindHangul:
 		return nil
 	default:
-		return fmt.Errorf("invalid card kind")
+		return validationErrorf("invalid card kind")
 	}
 }
 

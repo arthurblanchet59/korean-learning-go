@@ -65,13 +65,13 @@ func (service *AuthService) Register(ctx context.Context, input RegisterInput) (
 	name := strings.TrimSpace(input.Name)
 	email := normalizeEmail(input.Email)
 	if len([]rune(name)) < 2 {
-		return AuthResult{}, fmt.Errorf("le nom doit contenir au moins 2 caractères")
+		return AuthResult{}, validationErrorf("le nom doit contenir au moins 2 caractères")
 	}
 	if !validEmail(email) {
-		return AuthResult{}, fmt.Errorf("l'adresse email n'est pas valide")
+		return AuthResult{}, validationErrorf("l'adresse email n'est pas valide")
 	}
 	if len([]rune(input.Password)) < 8 {
-		return AuthResult{}, fmt.Errorf("le mot de passe doit contenir au moins 8 caractères")
+		return AuthResult{}, validationErrorf("le mot de passe doit contenir au moins 8 caractères")
 	}
 
 	passwordHash, err := hashPassword(input.Password)
@@ -241,13 +241,13 @@ func (service *AuthService) applyUserUpdate(user domain.User, input UpdateUserIn
 	if strings.TrimSpace(input.Email) != "" {
 		email := normalizeEmail(input.Email)
 		if !validEmail(email) {
-			return domain.User{}, fmt.Errorf("l'adresse email n'est pas valide")
+			return domain.User{}, validationErrorf("l'adresse email n'est pas valide")
 		}
 		user.Email = email
 	}
 	if input.Password != "" {
 		if len(input.Password) < 8 {
-			return domain.User{}, fmt.Errorf("password must contain at least 8 characters")
+			return domain.User{}, validationErrorf("le mot de passe doit contenir au moins 8 caractères")
 		}
 		passwordHash, err := hashPassword(input.Password)
 		if err != nil {

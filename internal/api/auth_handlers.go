@@ -1,12 +1,10 @@
 package api
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/arthurblanchet59/korean-learning-go/internal/repository"
 	"github.com/arthurblanchet59/korean-learning-go/internal/service"
 )
 
@@ -23,11 +21,7 @@ func (handler *Handler) register(ctx *gin.Context) {
 		Password: payload.Password,
 	})
 	if err != nil {
-		status := http.StatusBadRequest
-		if errors.Is(err, repository.ErrConflict) {
-			status = http.StatusConflict
-		}
-		writeError(ctx, status, err)
+		writeAuthError(ctx, err)
 		return
 	}
 
@@ -46,11 +40,7 @@ func (handler *Handler) login(ctx *gin.Context) {
 		Password: payload.Password,
 	})
 	if err != nil {
-		status := http.StatusBadRequest
-		if errors.Is(err, service.ErrInvalidCredentials) {
-			status = http.StatusUnauthorized
-		}
-		writeError(ctx, status, err)
+		writeAuthError(ctx, err)
 		return
 	}
 
@@ -60,11 +50,7 @@ func (handler *Handler) login(ctx *gin.Context) {
 func (handler *Handler) me(ctx *gin.Context) {
 	user, err := handler.auth.UserByID(ctx.Request.Context(), currentUserID(ctx))
 	if err != nil {
-		status := http.StatusInternalServerError
-		if errors.Is(err, repository.ErrNotFound) {
-			status = http.StatusNotFound
-		}
-		writeError(ctx, status, err)
+		writeAuthError(ctx, err)
 		return
 	}
 
@@ -114,7 +100,7 @@ func (handler *Handler) adminUpdateUser(ctx *gin.Context) {
 func (handler *Handler) adminListUsers(ctx *gin.Context) {
 	users, err := handler.auth.ListUsers(ctx.Request.Context())
 	if err != nil {
-		writeError(ctx, http.StatusInternalServerError, err)
+		writeInternalError(ctx, err)
 		return
 	}
 	ctx.JSON(http.StatusOK, users)
@@ -123,7 +109,7 @@ func (handler *Handler) adminListUsers(ctx *gin.Context) {
 func (handler *Handler) resetDatabase(ctx *gin.Context) {
 	result, err := handler.admin.ResetDatabase(ctx.Request.Context())
 	if err != nil {
-		writeError(ctx, http.StatusInternalServerError, err)
+		writeInternalError(ctx, err)
 		return
 	}
 
