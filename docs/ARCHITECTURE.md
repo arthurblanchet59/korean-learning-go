@@ -10,6 +10,18 @@ Le projet est decoupe en trois surfaces:
 
 Le package `core` contient les types et les regles metier partagees. L'objectif est d'eviter de dupliquer la logique de revision entre le backend et le TUI.
 
+```text
+internal/backend/
+  api/                 transport HTTP Gin
+  service/             regles metier
+  repository/sqlite/   persistance
+  curriculum/          donnees pedagogiques initiales
+apps/tui/
+  main.go              point d'entree
+  internal/app/        application Bubble Tea
+packages/core/         modeles et scheduler partages
+```
+
 ## Flux de revision
 
 ```txt

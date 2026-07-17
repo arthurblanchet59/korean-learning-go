@@ -20,8 +20,8 @@ builds:
       - goos: windows
         goarch: arm64
     ldflags:
-      - -s -w -X main.version={{ .Version }}
-      - -X main.defaultAPIURL=https://korean-learning-app-awe6anaeegavazcs.francecentral-01.azurewebsites.net
+      - -s -w -X github.com/arthurblanchet59/korean-learning-go/apps/tui/internal/app.version={{ .Version }}
+      - -X github.com/arthurblanchet59/korean-learning-go/apps/tui/internal/app.defaultAPIURL=https://korean-learning-app-awe6anaeegavazcs.francecentral-01.azurewebsites.net
 
 archives:
   - id: tui

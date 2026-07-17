@@ -196,11 +196,15 @@ Les tests couvrent notamment l’authentification, le CRUD des decks, le reset a
 
 ```text
 internal/
-  api/                   routes et handlers Gin par domaine
-  service/               règles métier et orchestration
-  repository/sqlite/     persistance SQLite par domaine
+  backend/
+    api/                 routes et handlers Gin
+    service/             règles métier et orchestration
+    repository/sqlite/   persistance SQLite par domaine
+    curriculum/          contenu pédagogique initial
 apps/
-  tui/                   client terminal Bubble Tea
+  tui/
+    main.go              point d'entrée du client terminal
+    internal/app/        logique, vues, API et configuration du TUI
 frontend/                client React/Vite
 packages/core/           modèles et scheduler partagés
 docs/                    architecture, OpenAPI et déploiement

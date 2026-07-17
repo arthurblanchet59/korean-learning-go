@@ -4,11 +4,11 @@ import (
 	"context"
 	"log"
 
-	"github.com/arthurblanchet59/korean-learning-go/internal/api"
-	"github.com/arthurblanchet59/korean-learning-go/internal/config"
-	"github.com/arthurblanchet59/korean-learning-go/internal/logging"
-	sqliterepo "github.com/arthurblanchet59/korean-learning-go/internal/repository/sqlite"
-	"github.com/arthurblanchet59/korean-learning-go/internal/service"
+	"github.com/arthurblanchet59/korean-learning-go/internal/backend/api"
+	"github.com/arthurblanchet59/korean-learning-go/internal/backend/config"
+	"github.com/arthurblanchet59/korean-learning-go/internal/backend/logging"
+	sqliterepo "github.com/arthurblanchet59/korean-learning-go/internal/backend/repository/sqlite"
+	"github.com/arthurblanchet59/korean-learning-go/internal/backend/service"
 	"github.com/arthurblanchet59/korean-learning-go/packages/core"
 )
 
