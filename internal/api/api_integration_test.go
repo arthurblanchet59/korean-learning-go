@@ -35,7 +35,7 @@ func testRouter(t *testing.T) (*gin.Engine, *sqliterepo.Store) {
 	if err := auth.EnsureAdmin(context.Background(), "Admin", "admin@example.test", "admin-password"); err != nil {
 		t.Fatal(err)
 	}
-	study := service.NewStudyService(store, store, store, store, store, core.NewScheduler())
+	study := service.NewStudyService(store, store, store, store, store, core.NewScheduler(), nil)
 	return NewRouter(study, auth, service.NewAdminService(store), service.NewClientBackupService(store)), store
 }
 

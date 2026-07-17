@@ -108,5 +108,8 @@ func writeResourceError(ctx *gin.Context, err error) {
 	if errors.Is(err, repository.ErrConflict) {
 		status = http.StatusConflict
 	}
+	if errors.Is(err, service.ErrCorrectionUnavailable) || errors.Is(err, service.ErrEmbeddingUnavailable) {
+		status = http.StatusBadGateway
+	}
 	writeError(ctx, status, err)
 }

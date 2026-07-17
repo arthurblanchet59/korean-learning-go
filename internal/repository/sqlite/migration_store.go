@@ -72,7 +72,27 @@ func (store *Store) Migrate() error {
 			original_text TEXT NOT NULL,
 			corrected_text TEXT NOT NULL,
 			corrections TEXT NOT NULL DEFAULT '[]',
+			sources TEXT NOT NULL DEFAULT '[]',
 			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		);
+
+		CREATE TABLE IF NOT EXISTS knowledge_chunks (
+			id TEXT PRIMARY KEY,
+			source_id TEXT NOT NULL,
+			title TEXT NOT NULL,
+			level TEXT NOT NULL,
+			content TEXT NOT NULL,
+			embedding TEXT NOT NULL,
+			embedding_model TEXT NOT NULL,
+			corpus_hash TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		);
+
+		CREATE TABLE IF NOT EXISTS knowledge_indexes (
+			embedding_model TEXT PRIMARY KEY,
+			corpus_hash TEXT NOT NULL,
+			chunk_count INTEGER NOT NULL,
 			updated_at TEXT NOT NULL
 		);
 
@@ -100,6 +120,7 @@ func (store *Store) Migrate() error {
 		{"decks", "user_id", "TEXT NOT NULL DEFAULT 'admin'"},
 		{"cards", "user_id", "TEXT NOT NULL DEFAULT 'admin'"},
 		{"reviews", "user_id", "TEXT NOT NULL DEFAULT 'admin'"},
+		{"journal_entries", "sources", "TEXT NOT NULL DEFAULT '[]'"},
 	} {
 		if err := store.ensureColumn(migration.table, migration.column, migration.definition); err != nil {
 			return err
@@ -115,6 +136,8 @@ func (store *Store) Migrate() error {
 		CREATE INDEX IF NOT EXISTS reviews_card_id_idx ON reviews(card_id);
 		CREATE INDEX IF NOT EXISTS reviews_reviewed_at_idx ON reviews(reviewed_at);
 		CREATE INDEX IF NOT EXISTS journal_user_id_idx ON journal_entries(user_id);
+		CREATE INDEX IF NOT EXISTS knowledge_chunks_model_idx ON knowledge_chunks(embedding_model);
+		CREATE INDEX IF NOT EXISTS knowledge_chunks_source_idx ON knowledge_chunks(source_id);
 	`); err != nil {
 		return err
 	}

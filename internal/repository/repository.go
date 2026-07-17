@@ -55,6 +55,13 @@ type JournalRepository interface {
 	DeleteJournalEntry(ctx context.Context, userID string, id string) error
 }
 
+type KnowledgeRepository interface {
+	ListKnowledgeLessons(ctx context.Context) ([]core.Lesson, error)
+	FindKnowledgeIndex(ctx context.Context, embeddingModel string) (domain.KnowledgeIndex, error)
+	ListKnowledgeChunks(ctx context.Context, embeddingModel string) ([]domain.KnowledgeChunk, error)
+	ReplaceKnowledgeIndex(ctx context.Context, index domain.KnowledgeIndex, chunks []domain.KnowledgeChunk) error
+}
+
 type ClientBackupRepository interface {
 	FindClientBackup(ctx context.Context, userID string) (domain.ClientBackup, error)
 	UpsertClientBackup(ctx context.Context, backup domain.ClientBackup) error

@@ -41,10 +41,14 @@ func (store *Store) CreateJournalEntry(ctx context.Context, entry core.JournalEn
 	if err != nil {
 		return err
 	}
+	sources, err := json.Marshal(entry.Sources)
+	if err != nil {
+		return err
+	}
 	_, err = store.db.ExecContext(ctx, `
-		INSERT INTO journal_entries (id, user_id, title, original_text, corrected_text, corrections, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-	`, entry.ID, entry.UserID, entry.Title, entry.OriginalText, entry.CorrectedText, string(corrections), formatTime(entry.CreatedAt), formatTime(entry.UpdatedAt))
+		INSERT INTO journal_entries (id, user_id, title, original_text, corrected_text, corrections, sources, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, entry.ID, entry.UserID, entry.Title, entry.OriginalText, entry.CorrectedText, string(corrections), string(sources), formatTime(entry.CreatedAt), formatTime(entry.UpdatedAt))
 	return err
 }
 
@@ -53,10 +57,14 @@ func (store *Store) UpdateJournalEntry(ctx context.Context, entry core.JournalEn
 	if err != nil {
 		return err
 	}
+	sources, err := json.Marshal(entry.Sources)
+	if err != nil {
+		return err
+	}
 	result, err := store.db.ExecContext(ctx, `
-		UPDATE journal_entries SET title = ?, original_text = ?, corrected_text = ?, corrections = ?, updated_at = ?
+		UPDATE journal_entries SET title = ?, original_text = ?, corrected_text = ?, corrections = ?, sources = ?, updated_at = ?
 		WHERE id = ? AND user_id = ?
-	`, entry.Title, entry.OriginalText, entry.CorrectedText, string(corrections), formatTime(entry.UpdatedAt), entry.ID, entry.UserID)
+	`, entry.Title, entry.OriginalText, entry.CorrectedText, string(corrections), string(sources), formatTime(entry.UpdatedAt), entry.ID, entry.UserID)
 	if err != nil {
 		return err
 	}
@@ -72,16 +80,19 @@ func (store *Store) DeleteJournalEntry(ctx context.Context, userID string, id st
 }
 
 func journalSelectSQL() string {
-	return `SELECT id, user_id, title, original_text, corrected_text, corrections, created_at, updated_at FROM journal_entries`
+	return `SELECT id, user_id, title, original_text, corrected_text, corrections, sources, created_at, updated_at FROM journal_entries`
 }
 
 func scanJournalEntry(scanner rowScanner) (core.JournalEntry, error) {
 	var entry core.JournalEntry
-	var correctionsRaw, createdAt, updatedAt string
-	if err := scanner.Scan(&entry.ID, &entry.UserID, &entry.Title, &entry.OriginalText, &entry.CorrectedText, &correctionsRaw, &createdAt, &updatedAt); err != nil {
+	var correctionsRaw, sourcesRaw, createdAt, updatedAt string
+	if err := scanner.Scan(&entry.ID, &entry.UserID, &entry.Title, &entry.OriginalText, &entry.CorrectedText, &correctionsRaw, &sourcesRaw, &createdAt, &updatedAt); err != nil {
 		return core.JournalEntry{}, err
 	}
 	if err := json.Unmarshal([]byte(correctionsRaw), &entry.Corrections); err != nil {
+		return core.JournalEntry{}, err
+	}
+	if err := json.Unmarshal([]byte(sourcesRaw), &entry.Sources); err != nil {
 		return core.JournalEntry{}, err
 	}
 	entry.CreatedAt = parseTime(createdAt)

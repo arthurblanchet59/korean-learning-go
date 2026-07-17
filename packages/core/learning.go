@@ -25,15 +25,30 @@ type Correction struct {
 	Reason      string `json:"reason"`
 }
 
+type CorrectionSource struct {
+	ID      string  `json:"id"`
+	Title   string  `json:"title"`
+	Level   string  `json:"level"`
+	Excerpt string  `json:"excerpt"`
+	Score   float64 `json:"score"`
+}
+
+type CorrectionResult struct {
+	CorrectedText string             `json:"correctedText"`
+	Corrections   []Correction       `json:"corrections"`
+	Sources       []CorrectionSource `json:"sources"`
+}
+
 type JournalEntry struct {
-	ID            string       `json:"id"`
-	UserID        string       `json:"-"`
-	Title         string       `json:"title"`
-	OriginalText  string       `json:"originalText"`
-	CorrectedText string       `json:"correctedText"`
-	Corrections   []Correction `json:"corrections"`
-	CreatedAt     time.Time    `json:"createdAt"`
-	UpdatedAt     time.Time    `json:"updatedAt"`
+	ID            string             `json:"id"`
+	UserID        string             `json:"-"`
+	Title         string             `json:"title"`
+	OriginalText  string             `json:"originalText"`
+	CorrectedText string             `json:"correctedText"`
+	Corrections   []Correction       `json:"corrections"`
+	Sources       []CorrectionSource `json:"sources"`
+	CreatedAt     time.Time          `json:"createdAt"`
+	UpdatedAt     time.Time          `json:"updatedAt"`
 }
 
 type AnswerCheck struct {

@@ -1,11 +1,31 @@
 package service
 
 import (
+	"context"
+	"errors"
 	"strings"
 	"unicode"
 
 	"github.com/arthurblanchet59/korean-learning-go/packages/core"
 )
+
+var ErrCorrectionUnavailable = errors.New("automatic correction is unavailable")
+var ErrEmbeddingUnavailable = errors.New("pedagogical search is unavailable")
+
+type KoreanCorrector interface {
+	Correct(ctx context.Context, input string) (core.CorrectionResult, error)
+}
+
+type LocalKoreanCorrector struct{}
+
+func (LocalKoreanCorrector) Correct(_ context.Context, input string) (core.CorrectionResult, error) {
+	corrected, corrections := CorrectKorean(input)
+	return core.CorrectionResult{
+		CorrectedText: corrected,
+		Corrections:   corrections,
+		Sources:       []core.CorrectionSource{},
+	}, nil
+}
 
 var commonKoreanCorrections = []struct {
 	from   string

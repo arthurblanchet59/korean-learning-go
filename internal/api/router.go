@@ -136,6 +136,7 @@ func NewRouter(study *service.StudyService, auth *service.AuthService, adminServ
 	admin.PUT("/users/:id", handler.adminUpdateUser)
 	admin.POST("/reset", handler.resetDatabase)
 	admin.DELETE("/reset", handler.resetDatabase)
+	admin.POST("/rag/reindex", handler.reindexKnowledge)
 
 	api := router.Group("/api")
 	api.Use(handler.authMiddleware())
@@ -170,6 +171,7 @@ func NewRouter(study *service.StudyService, auth *service.AuthService, adminServ
 	api.GET("/lessons/:id", handler.getLesson)
 	api.PUT("/lessons/:id/progress", handler.updateLessonProgress)
 	api.GET("/journal", handler.listJournalEntries)
+	api.GET("/rag/status", handler.knowledgeIndexStatus)
 	api.POST("/journal", handler.createJournalEntry)
 	api.POST("/journal/correct", handler.correctJournalText)
 	api.GET("/journal/:id", handler.getJournalEntry)

@@ -78,8 +78,30 @@ func (handler *Handler) correctJournalText(ctx *gin.Context) {
 		writeError(ctx, http.StatusBadRequest, err)
 		return
 	}
-	corrected, corrections := service.CorrectKorean(payload.Text)
-	ctx.JSON(http.StatusOK, gin.H{"correctedText": corrected, "corrections": corrections})
+	result, err := handler.study.CorrectJournalText(ctx.Request.Context(), payload.Text)
+	if err != nil {
+		writeResourceError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, result)
+}
+
+func (handler *Handler) knowledgeIndexStatus(ctx *gin.Context) {
+	status, err := handler.study.KnowledgeIndexStatus(ctx.Request.Context())
+	if err != nil {
+		writeError(ctx, http.StatusInternalServerError, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, status)
+}
+
+func (handler *Handler) reindexKnowledge(ctx *gin.Context) {
+	status, err := handler.study.ReindexKnowledge(ctx.Request.Context())
+	if err != nil {
+		writeResourceError(ctx, err)
+		return
+	}
+	ctx.JSON(http.StatusOK, status)
 }
 
 func (handler *Handler) updateJournalEntry(ctx *gin.Context) {

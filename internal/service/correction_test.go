@@ -1,6 +1,21 @@
 package service
 
-import "testing"
+import (
+	"context"
+	"testing"
+
+	"github.com/arthurblanchet59/korean-learning-go/packages/core"
+)
+
+type correctionStub struct{}
+
+func (correctionStub) Correct(_ context.Context, input string) (core.CorrectionResult, error) {
+	return core.CorrectionResult{
+		CorrectedText: input + " corrigé",
+		Corrections:   []core.Correction{{Original: input, Replacement: input + " corrigé", Reason: "Test"}},
+		Sources:       []core.CorrectionSource{},
+	}, nil
+}
 
 func TestCorrectKoreanSpacingAndParticles(t *testing.T) {
 	corrected, corrections := CorrectKorean("저 는 오늘 한국어를 공부 해요")
@@ -24,5 +39,16 @@ func TestCorrectKoreanDoesNotRewriteAmbiguousWordEndings(t *testing.T) {
 func TestNormalizeAnswerIgnoresFrenchDiacritics(t *testing.T) {
 	if normalizeAnswer("À l'école !") != normalizeAnswer("a lecole") {
 		t.Fatal("expected French diacritics and punctuation to be ignored")
+	}
+}
+
+func TestStudyServiceUsesInjectedKoreanCorrector(t *testing.T) {
+	study := &StudyService{corrector: correctionStub{}}
+	result, err := study.CorrectJournalText(context.Background(), "문장")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.CorrectedText != "문장 corrigé" || len(result.Corrections) != 1 {
+		t.Fatalf("unexpected injected correction: %+v", result)
 	}
 }

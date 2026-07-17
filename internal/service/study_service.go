@@ -19,6 +19,7 @@ type StudyService struct {
 	lessons   repository.LessonRepository
 	journal   repository.JournalRepository
 	scheduler core.Scheduler
+	corrector KoreanCorrector
 	now       func() time.Time
 }
 
@@ -59,7 +60,10 @@ type SearchResult struct {
 	Cards []core.Card `json:"cards"`
 }
 
-func NewStudyService(decks repository.DeckRepository, cards repository.CardRepository, reviews repository.ReviewRepository, lessons repository.LessonRepository, journal repository.JournalRepository, scheduler core.Scheduler) *StudyService {
+func NewStudyService(decks repository.DeckRepository, cards repository.CardRepository, reviews repository.ReviewRepository, lessons repository.LessonRepository, journal repository.JournalRepository, scheduler core.Scheduler, corrector KoreanCorrector) *StudyService {
+	if corrector == nil {
+		corrector = LocalKoreanCorrector{}
+	}
 	return &StudyService{
 		decks:     decks,
 		cards:     cards,
@@ -67,6 +71,7 @@ func NewStudyService(decks repository.DeckRepository, cards repository.CardRepos
 		lessons:   lessons,
 		journal:   journal,
 		scheduler: scheduler,
+		corrector: corrector,
 		now:       func() time.Time { return time.Now().UTC() },
 	}
 }

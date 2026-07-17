@@ -179,9 +179,22 @@ func (service *StudyService) CreateJournalEntry(ctx context.Context, userID stri
 	if strings.TrimSpace(input.Text) == "" {
 		return core.JournalEntry{}, fmt.Errorf("journal text is required")
 	}
-	corrected, corrections := CorrectKorean(input.Text)
+	correction, err := service.CorrectJournalText(ctx, input.Text)
+	if err != nil {
+		return core.JournalEntry{}, err
+	}
 	now := service.now()
-	entry := core.JournalEntry{ID: uuid.NewString(), UserID: userID, Title: journalTitle(input.Title, now), OriginalText: strings.TrimSpace(input.Text), CorrectedText: corrected, Corrections: corrections, CreatedAt: now, UpdatedAt: now}
+	entry := core.JournalEntry{
+		ID:            uuid.NewString(),
+		UserID:        userID,
+		Title:         journalTitle(input.Title, now),
+		OriginalText:  strings.TrimSpace(input.Text),
+		CorrectedText: correction.CorrectedText,
+		Corrections:   correction.Corrections,
+		Sources:       correction.Sources,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
 	if err := service.journal.CreateJournalEntry(ctx, entry); err != nil {
 		return core.JournalEntry{}, err
 	}
@@ -198,12 +211,50 @@ func (service *StudyService) UpdateJournalEntry(ctx context.Context, userID stri
 	}
 	entry.Title = journalTitle(input.Title, entry.CreatedAt)
 	entry.OriginalText = strings.TrimSpace(input.Text)
-	entry.CorrectedText, entry.Corrections = CorrectKorean(entry.OriginalText)
+	correction, err := service.CorrectJournalText(ctx, entry.OriginalText)
+	if err != nil {
+		return core.JournalEntry{}, err
+	}
+	entry.CorrectedText = correction.CorrectedText
+	entry.Corrections = correction.Corrections
+	entry.Sources = correction.Sources
 	entry.UpdatedAt = service.now()
 	if err := service.journal.UpdateJournalEntry(ctx, entry); err != nil {
 		return core.JournalEntry{}, err
 	}
 	return entry, nil
+}
+
+func (service *StudyService) CorrectJournalText(ctx context.Context, text string) (core.CorrectionResult, error) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return core.CorrectionResult{}, fmt.Errorf("journal text is required")
+	}
+	return service.corrector.Correct(ctx, text)
+}
+
+func (service *StudyService) KnowledgeIndexStatus(ctx context.Context) (KnowledgeIndexStatus, error) {
+	indexer, ok := service.corrector.(KnowledgeIndexer)
+	if !ok {
+		return KnowledgeIndexStatus{Enabled: false}, nil
+	}
+	return indexer.Status(ctx)
+}
+
+func (service *StudyService) EnsureKnowledgeIndex(ctx context.Context) (KnowledgeIndexStatus, error) {
+	indexer, ok := service.corrector.(KnowledgeIndexer)
+	if !ok {
+		return KnowledgeIndexStatus{Enabled: false}, nil
+	}
+	return indexer.EnsureIndex(ctx)
+}
+
+func (service *StudyService) ReindexKnowledge(ctx context.Context) (KnowledgeIndexStatus, error) {
+	indexer, ok := service.corrector.(KnowledgeIndexer)
+	if !ok {
+		return KnowledgeIndexStatus{Enabled: false}, fmt.Errorf("pedagogical RAG is not configured")
+	}
+	return indexer.Reindex(ctx)
 }
 
 func (service *StudyService) DeleteJournalEntry(ctx context.Context, userID string, id string) error {
