@@ -530,8 +530,10 @@ func (m model) updateLogin(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch key.Type {
 	case tea.KeyCtrlC, tea.KeyEsc:
 		return m, tea.Quit
-	case tea.KeyTab, tea.KeyDown, tea.KeyUp:
+	case tea.KeyTab, tea.KeyDown:
 		m.loginField = (m.loginField + 1) % fieldCount
+	case tea.KeyUp:
+		m.loginField = (m.loginField - 1 + fieldCount) % fieldCount
 	case tea.KeyEnter:
 		if m.loginField < fieldCount-1 {
 			m.loginField++
@@ -612,6 +614,22 @@ func (m model) updateInput(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) updateNavigation(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.showHelp {
+		switch key.String() {
+		case "?", "esc":
+			m.showHelp = false
+			m.detailScroll = 0
+		case "pgdown", "ctrl+d":
+			m.detailScroll += max(3, m.height/3)
+		case "pgup", "ctrl+u":
+			m.detailScroll = max(0, m.detailScroll-max(3, m.height/3))
+		case "q", "ctrl+c":
+			m.persistState()
+			return m, tea.Quit
+		}
+		return m, nil
+	}
+
 	switch key.String() {
 	case "q", "ctrl+c":
 		m.persistState()
@@ -620,8 +638,10 @@ func (m model) updateNavigation(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.logout(), nil
 	case "?":
 		m.showHelp = !m.showHelp
-	case ":":
+		m.detailScroll = 0
+	case ":", "c":
 		m.inputMode = "command"
+		m.input = ""
 		m.status = commandHint(m.tab)
 	case "/":
 		m.inputMode = "search"
@@ -749,6 +769,24 @@ func (m model) updateNavigation(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.journalTitle = entry.Title
 			m.journalText = entry.OriginalText
 			m.err = nil
+		} else if m.tab == tabLibrary {
+			m.inputMode = "command"
+			if m.libraryCards && len(m.data.Cards) > 0 {
+				card := m.data.Cards[m.cursor]
+				m.input = "card-update " + strings.Join([]string{
+					card.ID,
+					card.Korean,
+					card.Translation,
+					card.Romanization,
+				}, " | ")
+			} else if !m.libraryCards && len(m.data.Decks) > 0 {
+				deck := m.data.Decks[m.cursor]
+				m.input = "deck-update " + strings.Join([]string{
+					deck.ID,
+					deck.Name,
+					deck.Description,
+				}, " | ")
+			}
 		}
 	case "x":
 		if m.tab == tabAdmin && m.data.User.IsAdmin {
@@ -1039,7 +1077,7 @@ func (m model) libraryView(width, height int) string {
 		deck := m.data.Decks[m.cursor]
 		detail += activeStyle.Render(deck.Name) + "\n" + deck.Description + "\n\nID: " + deck.ID
 	}
-	detail += "\n\n" + mutedStyle.Render("n nouveau  ·  d supprimer  ·  : commandes avancées")
+	detail += "\n\n" + mutedStyle.Render("n nouveau  ·  e modifier  ·  d supprimer  ·  c options avancées")
 	return lipgloss.JoinHorizontal(lipgloss.Top, panelStyle.Width(leftWidth).Height(height-2).Render(list), panelStyle.Width(width-leftWidth-9).Height(height-2).Render(detail))
 }
 
@@ -1202,8 +1240,9 @@ func (m model) adminView(width, height int) string {
 }
 
 func (m model) helpView(width, height int) string {
-	help := "AIDE\n\n h/l ou ←/→   changer d'onglet\n j/k ou ↑/↓   naviguer\n PgUp/PgDn    faire défiler le détail\n a             saisir une réponse\n v             inverser KO/FR\n espace        révéler une carte\n 1..4          indiquer la mémorisation\n n             créer dans la vue active\n d             supprimer l'élément actif\n e             modifier l'élément actif, l'URL API ou le profil\n u             envoyer config + état vers le serveur\n o             restaurer config + état depuis le serveur\n D             se déconnecter\n x             préparer le reset administrateur\n tab           decks/cartes dans la bibliothèque\n /             recherche globale\n :             palette de commandes\n r             actualiser\n ?             fermer l'aide\n q             quitter\n\nCOMMANDES AVANCÉES\n deck-add NOM | DESCRIPTION\n deck-update ID | NOM | DESCRIPTION\n decks-description ID1,ID2 | DESCRIPTION\n card-add DECK_ID | CORÉEN | TRADUCTION | ROMANISATION\n card-update ID | CORÉEN | TRADUCTION | ROMANISATION\n cards-move ID1,ID2 | DECK_ID\n lesson-complete ID\n import DECK_ID | FICHIER.csv\n export FICHIER.csv"
-	return panelStyle.BorderForeground(brightGreen).Width(width - 6).Height(height - 2).Render(help)
+	help := "AIDE\n\n h/l ou ←/→   changer d'onglet\n j/k ou ↑/↓   naviguer\n PgUp/PgDn    faire défiler le détail\n a             saisir une réponse\n v             inverser KO/FR\n espace        révéler une carte\n 1..4          indiquer la mémorisation\n n             créer dans la bibliothèque ou le journal\n d             supprimer dans la bibliothèque ou le journal\n e             modifier l'élément actif, l'URL API ou le profil\n u             envoyer config + état vers le serveur\n o             restaurer config + état depuis le serveur\n D             se déconnecter\n x             préparer le reset administrateur\n tab           decks/cartes dans la bibliothèque\n /             recherche globale\n c ou :        ouvrir les commandes avancées\n r             actualiser\n ? ou échap    fermer l'aide\n q             quitter\n\nCOMMANDES AVANCÉES\n deck-add NOM | DESCRIPTION\n deck-update ID | NOM | DESCRIPTION\n decks-delete ID1,ID2\n decks-description ID1,ID2 | DESCRIPTION\n card-add DECK_ID | CORÉEN | TRADUCTION | ROMANISATION\n card-update ID | CORÉEN | TRADUCTION | ROMANISATION\n cards-delete ID1,ID2\n cards-move ID1,ID2 | DECK_ID\n lesson-complete ID\n import DECK_ID | FICHIER.csv\n export FICHIER.csv"
+	content := scrollableText(help, max(24, width-12), max(5, height-6), m.detailScroll)
+	return panelStyle.BorderForeground(brightGreen).Width(width - 6).Height(height - 2).Render(content)
 }
 
 func (m model) footerView(width int) string {
@@ -1223,7 +1262,16 @@ func (m model) footerView(width int) string {
 		}
 		status = activeStyle.Render(prefix) + m.input + "█"
 	}
-	hints := mutedStyle.Render(" h/l onglets  j/k naviguer  / chercher  : commandes  D déconnexion  ? aide  q quitter ")
+	hintText := " h/l onglets  j/k naviguer  / chercher  c commandes  D déconnexion  ? aide  q quitter "
+	compactHint := " h/l onglets  j/k naviguer  c commandes  ? aide  q quitter "
+	available := width - lipgloss.Width(status) - 3
+	if lipgloss.Width(hintText) > available {
+		hintText = compactHint
+	}
+	if lipgloss.Width(hintText) > available {
+		hintText = ""
+	}
+	hints := mutedStyle.Render(hintText)
 	space := max(1, width-lipgloss.Width(status)-lipgloss.Width(hints)-2)
 	return lipgloss.NewStyle().Background(lipgloss.Color("#0D1512")).Width(width).Render(" " + status + strings.Repeat(" ", space) + hints)
 }
@@ -1604,11 +1652,15 @@ func envOr(name, fallback string) string {
 }
 func commandHint(tab int) string {
 	hints := map[int]string{
-		tabLibrary:  "deck-add / card-add",
+		tabLibrary:  "deck-add / card-add / import / export",
 		tabLessons:  "lesson-complete",
 		tabJournal:  "utilise n pour écrire ou e pour modifier",
 		tabSettings: "e URL API / u envoyer / o restaurer",
 		tabAdmin:    "admin-user / reset",
 	}
-	return "Commande : " + hints[tab]
+	hint := hints[tab]
+	if hint == "" {
+		hint = "saisis une commande avancée (? pour consulter l'aide)"
+	}
+	return "Commande : " + hint
 }

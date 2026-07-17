@@ -10,6 +10,7 @@ import (
 
 	"github.com/arthurblanchet59/korean-learning-go/packages/core"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 func keyEnter() tea.KeyMsg {
@@ -337,6 +338,95 @@ func TestRegistrationFormSubmitsDisplayedValues(t *testing.T) {
 	}
 	if payload["name"] != "testabt" || payload["email"] != "test@gmail.com" || payload["password"] != "testtest" {
 		t.Fatalf("form values changed before submission: %#v", payload)
+	}
+}
+
+func TestLoginUpMovesToPreviousField(t *testing.T) {
+	m := model{registering: true, loginField: 0}
+
+	updated, _ := m.updateLogin(tea.KeyMsg{Type: tea.KeyUp})
+	if field := updated.(model).loginField; field != 2 {
+		t.Fatalf("up should select the previous field, got %d", field)
+	}
+}
+
+func TestLibraryViewExposesEveryAvailableAction(t *testing.T) {
+	m := model{
+		libraryCards: true,
+		data: DashboardData{Cards: []core.Card{{
+			ID: "card-1", Korean: "집", Translation: "maison",
+		}}},
+	}
+
+	view := m.libraryView(110, 28)
+	for _, expected := range []string{"n nouveau", "e modifier", "d supprimer", "c options avancées"} {
+		if !strings.Contains(view, expected) {
+			t.Fatalf("library action %q is missing: %q", expected, view)
+		}
+	}
+}
+
+func TestLibraryAdvancedShortcutOpensCommandInput(t *testing.T) {
+	m := model{tab: tabLibrary, input: "ancienne commande"}
+
+	updated, _ := m.updateNavigation(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}})
+	commandModel := updated.(model)
+	if commandModel.inputMode != "command" || commandModel.input != "" {
+		t.Fatalf("advanced shortcut did not open a clean command input: %#v", commandModel)
+	}
+}
+
+func TestLibraryEditPrefillsSelectedCard(t *testing.T) {
+	m := model{
+		tab:          tabLibrary,
+		libraryCards: true,
+		data: DashboardData{Cards: []core.Card{{
+			ID: "card-1", Korean: "집", Translation: "maison", Romanization: "jip",
+		}}},
+	}
+
+	updated, _ := m.updateNavigation(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}})
+	commandModel := updated.(model)
+	expected := "card-update card-1 | 집 | maison | jip"
+	if commandModel.inputMode != "command" || commandModel.input != expected {
+		t.Fatalf("edit shortcut prefilled %q, expected %q", commandModel.input, expected)
+	}
+}
+
+func TestHelpBlocksBackgroundActions(t *testing.T) {
+	m := model{tab: tabJournal, showHelp: true}
+
+	updated, command := m.updateNavigation(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	helpModel := updated.(model)
+	if command != nil || helpModel.journalEditing || !helpModel.showHelp {
+		t.Fatalf("help allowed a background action: %#v", helpModel)
+	}
+
+	updated, _ = helpModel.updateNavigation(tea.KeyMsg{Type: tea.KeyEsc})
+	if updated.(model).showHelp {
+		t.Fatal("escape did not close the help")
+	}
+}
+
+func TestHelpCanScrollInSmallTerminal(t *testing.T) {
+	m := model{showHelp: true, height: 24}
+
+	firstPage := m.helpView(80, 16)
+	updated, _ := m.updateNavigation(tea.KeyMsg{Type: tea.KeyPgDown})
+	scrolled := updated.(model)
+	secondPage := scrolled.helpView(80, 16)
+
+	if scrolled.detailScroll == 0 || firstPage == secondPage {
+		t.Fatalf("help did not scroll: offset=%d", scrolled.detailScroll)
+	}
+}
+
+func TestFooterUsesCompactHintsWhenStatusNeedsSpace(t *testing.T) {
+	m := model{status: "Une opération vient de se terminer correctement"}
+
+	view := m.footerView(80)
+	if lipgloss.Width(view) > 80 {
+		t.Fatalf("footer exceeds its viewport: width=%d", lipgloss.Width(view))
 	}
 }
 
