@@ -70,8 +70,8 @@ func (service *AuthService) Register(ctx context.Context, input RegisterInput) (
 	if !validEmail(email) {
 		return AuthResult{}, validationErrorf("l'adresse email n'est pas valide")
 	}
-	if len([]rune(input.Password)) < 8 {
-		return AuthResult{}, validationErrorf("le mot de passe doit contenir au moins 8 caractères")
+	if err := validatePassword(input.Password); err != nil {
+		return AuthResult{}, err
 	}
 
 	passwordHash, err := hashPassword(input.Password)
@@ -246,8 +246,8 @@ func (service *AuthService) applyUserUpdate(user domain.User, input UpdateUserIn
 		user.Email = email
 	}
 	if input.Password != "" {
-		if len(input.Password) < 8 {
-			return domain.User{}, validationErrorf("le mot de passe doit contenir au moins 8 caractères")
+		if err := validatePassword(input.Password); err != nil {
+			return domain.User{}, err
 		}
 		passwordHash, err := hashPassword(input.Password)
 		if err != nil {
@@ -257,6 +257,20 @@ func (service *AuthService) applyUserUpdate(user domain.User, input UpdateUserIn
 	}
 	user.UpdatedAt = service.now()
 	return user, nil
+}
+
+// maxPasswordBytes is the hard limit bcrypt enforces: bytes past the 72nd are
+// ignored, so we reject longer passwords instead of silently truncating them.
+const maxPasswordBytes = 72
+
+func validatePassword(password string) error {
+	if len([]rune(password)) < 8 {
+		return validationErrorf("le mot de passe doit contenir au moins 8 caractères")
+	}
+	if len(password) > maxPasswordBytes {
+		return validationErrorf("le mot de passe ne doit pas dépasser 72 octets")
+	}
+	return nil
 }
 
 func hashPassword(password string) (string, error) {

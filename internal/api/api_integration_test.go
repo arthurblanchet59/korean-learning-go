@@ -36,7 +36,7 @@ func testRouter(t *testing.T) (*gin.Engine, *sqliterepo.Store) {
 		t.Fatal(err)
 	}
 	study := service.NewStudyService(store, store, store, store, store, core.NewScheduler())
-	return NewRouter(study, auth, service.NewAdminService(store), service.NewClientBackupService(store)), store
+	return NewRouter(study, auth, service.NewAdminService(store), service.NewClientBackupService(store), "*"), store
 }
 
 func performJSON(t *testing.T, router http.Handler, method string, path string, body any, token string) *httptest.ResponseRecorder {

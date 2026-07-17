@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -108,7 +109,7 @@ type updateUserRequest struct {
 	Password string `json:"password" binding:"omitempty,min=8,max=120"`
 }
 
-func NewRouter(study *service.StudyService, auth *service.AuthService, adminService *service.AdminService, backupService *service.ClientBackupService, middlewares ...gin.HandlerFunc) *gin.Engine {
+func NewRouter(study *service.StudyService, auth *service.AuthService, adminService *service.AdminService, backupService *service.ClientBackupService, corsOrigin string, middlewares ...gin.HandlerFunc) *gin.Engine {
 	handler := &Handler{study: study, auth: auth, admin: adminService, backup: backupService}
 
 	router := gin.New()
@@ -117,12 +118,14 @@ func NewRouter(study *service.StudyService, auth *service.AuthService, adminServ
 	} else {
 		router.Use(gin.Logger(), gin.Recovery())
 	}
-	router.Use(cors())
+	router.Use(cors(corsOrigin))
 
 	router.GET("/health", handler.health)
 	registerSwaggerRoutes(router)
-	router.POST("/user/register", handler.register)
-	router.POST("/user/login", handler.login)
+
+	authLimiter := newRateLimiter(10, time.Minute)
+	router.POST("/user/register", authLimiter.middleware(), handler.register)
+	router.POST("/user/login", authLimiter.middleware(), handler.login)
 	router.GET("/search", handler.authMiddleware(), handler.searchAll)
 
 	user := router.Group("/user")

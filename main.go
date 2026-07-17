@@ -55,6 +55,7 @@ func main() {
 		authService,
 		adminService,
 		backupService,
+		cfg.CORSAllowedOrigin,
 		appLogger.AccessMiddleware(),
 		appLogger.RecoveryMiddleware(),
 	)

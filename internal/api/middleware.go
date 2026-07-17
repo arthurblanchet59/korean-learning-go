@@ -12,9 +12,9 @@ import (
 	"github.com/arthurblanchet59/korean-learning-go/internal/service"
 )
 
-func cors() gin.HandlerFunc {
+func cors(allowedOrigin string) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		ctx.Header("Access-Control-Allow-Origin", "*")
+		ctx.Header("Access-Control-Allow-Origin", allowedOrigin)
 		ctx.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		ctx.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 
