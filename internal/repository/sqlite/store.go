@@ -17,17 +17,13 @@ func Open(path string) (*Store, error) {
 		return nil, err
 	}
 
-	db, err := sql.Open("sqlite", path)
+	dsn := path + "?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(ON)"
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, err
 	}
 
 	db.SetMaxOpenConns(1)
-
-	if _, err := db.Exec(`PRAGMA foreign_keys = ON`); err != nil {
-		_ = db.Close()
-		return nil, err
-	}
 
 	return &Store{db: db}, nil
 }

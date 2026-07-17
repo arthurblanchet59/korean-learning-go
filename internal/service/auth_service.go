@@ -65,13 +65,13 @@ func (service *AuthService) Register(ctx context.Context, input RegisterInput) (
 	name := strings.TrimSpace(input.Name)
 	email := normalizeEmail(input.Email)
 	if len([]rune(name)) < 2 {
-		return AuthResult{}, fmt.Errorf("le nom doit contenir au moins 2 caractères")
+		return AuthResult{}, validationErrorf("le nom doit contenir au moins 2 caractères")
 	}
 	if !validEmail(email) {
-		return AuthResult{}, fmt.Errorf("l'adresse email n'est pas valide")
+		return AuthResult{}, validationErrorf("l'adresse email n'est pas valide")
 	}
-	if len([]rune(input.Password)) < 8 {
-		return AuthResult{}, fmt.Errorf("le mot de passe doit contenir au moins 8 caractères")
+	if err := validatePassword(input.Password); err != nil {
+		return AuthResult{}, err
 	}
 
 	passwordHash, err := hashPassword(input.Password)
@@ -148,7 +148,7 @@ func (service *AuthService) UpdateSelf(ctx context.Context, userID string, input
 		return domain.PublicUser{}, err
 	}
 
-	updated, err := service.applyUserUpdate(user, input, false)
+	updated, err := service.applyUserUpdate(user, input)
 	if err != nil {
 		return domain.PublicUser{}, err
 	}
@@ -169,7 +169,7 @@ func (service *AuthService) AdminUpdateUser(ctx context.Context, userID string, 
 		return domain.PublicUser{}, ErrForbidden
 	}
 
-	updated, err := service.applyUserUpdate(user, input, false)
+	updated, err := service.applyUserUpdate(user, input)
 	if err != nil {
 		return domain.PublicUser{}, err
 	}
@@ -234,20 +234,20 @@ func (service *AuthService) authResult(user domain.User) (AuthResult, error) {
 	return AuthResult{Token: signedToken, User: user.Public()}, nil
 }
 
-func (service *AuthService) applyUserUpdate(user domain.User, input UpdateUserInput, allowAdminChange bool) (domain.User, error) {
+func (service *AuthService) applyUserUpdate(user domain.User, input UpdateUserInput) (domain.User, error) {
 	if strings.TrimSpace(input.Name) != "" {
 		user.Name = strings.TrimSpace(input.Name)
 	}
 	if strings.TrimSpace(input.Email) != "" {
 		email := normalizeEmail(input.Email)
 		if !validEmail(email) {
-			return domain.User{}, fmt.Errorf("l'adresse email n'est pas valide")
+			return domain.User{}, validationErrorf("l'adresse email n'est pas valide")
 		}
 		user.Email = email
 	}
 	if input.Password != "" {
-		if len(input.Password) < 8 {
-			return domain.User{}, fmt.Errorf("password must contain at least 8 characters")
+		if err := validatePassword(input.Password); err != nil {
+			return domain.User{}, err
 		}
 		passwordHash, err := hashPassword(input.Password)
 		if err != nil {
@@ -257,6 +257,20 @@ func (service *AuthService) applyUserUpdate(user domain.User, input UpdateUserIn
 	}
 	user.UpdatedAt = service.now()
 	return user, nil
+}
+
+// maxPasswordBytes is the hard limit bcrypt enforces: bytes past the 72nd are
+// ignored, so we reject longer passwords instead of silently truncating them.
+const maxPasswordBytes = 72
+
+func validatePassword(password string) error {
+	if len([]rune(password)) < 8 {
+		return validationErrorf("le mot de passe doit contenir au moins 8 caractères")
+	}
+	if len(password) > maxPasswordBytes {
+		return validationErrorf("le mot de passe ne doit pas dépasser 72 octets")
+	}
+	return nil
 }
 
 func hashPassword(password string) (string, error) {

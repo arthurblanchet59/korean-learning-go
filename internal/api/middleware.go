@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 
@@ -11,9 +12,9 @@ import (
 	"github.com/arthurblanchet59/korean-learning-go/internal/service"
 )
 
-func cors() gin.HandlerFunc {
+func cors(allowedOrigin string) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		ctx.Header("Access-Control-Allow-Origin", "*")
+		ctx.Header("Access-Control-Allow-Origin", allowedOrigin)
 		ctx.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		ctx.Header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 
@@ -86,27 +87,44 @@ func writeError(ctx *gin.Context, status int, err error) {
 	ctx.JSON(status, gin.H{"error": err.Error()})
 }
 
+// writeInternalError logs the real error server-side and returns a generic 500
+// so internal details (SQL errors, etc.) never leak to the client.
+func writeInternalError(ctx *gin.Context, err error) {
+	log.Printf("%s %s: %v", ctx.Request.Method, ctx.Request.URL.Path, err)
+	ctx.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+}
+
+func isValidationError(err error) bool {
+	var validation service.ValidationError
+	return errors.As(err, &validation)
+}
+
 func writeAuthError(ctx *gin.Context, err error) {
-	status := http.StatusBadRequest
-	if errors.Is(err, repository.ErrNotFound) {
-		status = http.StatusNotFound
+	switch {
+	case isValidationError(err):
+		writeError(ctx, http.StatusBadRequest, err)
+	case errors.Is(err, service.ErrInvalidCredentials):
+		writeError(ctx, http.StatusUnauthorized, err)
+	case errors.Is(err, repository.ErrNotFound):
+		writeError(ctx, http.StatusNotFound, err)
+	case errors.Is(err, repository.ErrConflict):
+		writeError(ctx, http.StatusConflict, err)
+	case errors.Is(err, service.ErrForbidden):
+		writeError(ctx, http.StatusForbidden, err)
+	default:
+		writeInternalError(ctx, err)
 	}
-	if errors.Is(err, repository.ErrConflict) {
-		status = http.StatusConflict
-	}
-	if errors.Is(err, service.ErrForbidden) {
-		status = http.StatusForbidden
-	}
-	writeError(ctx, status, err)
 }
 
 func writeResourceError(ctx *gin.Context, err error) {
-	status := http.StatusBadRequest
-	if errors.Is(err, repository.ErrNotFound) {
-		status = http.StatusNotFound
+	switch {
+	case isValidationError(err):
+		writeError(ctx, http.StatusBadRequest, err)
+	case errors.Is(err, repository.ErrNotFound):
+		writeError(ctx, http.StatusNotFound, err)
+	case errors.Is(err, repository.ErrConflict):
+		writeError(ctx, http.StatusConflict, err)
+	default:
+		writeInternalError(ctx, err)
 	}
-	if errors.Is(err, repository.ErrConflict) {
-		status = http.StatusConflict
-	}
-	writeError(ctx, status, err)
 }
