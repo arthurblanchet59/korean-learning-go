@@ -148,7 +148,7 @@ func (service *AuthService) UpdateSelf(ctx context.Context, userID string, input
 		return domain.PublicUser{}, err
 	}
 
-	updated, err := service.applyUserUpdate(user, input, false)
+	updated, err := service.applyUserUpdate(user, input)
 	if err != nil {
 		return domain.PublicUser{}, err
 	}
@@ -169,7 +169,7 @@ func (service *AuthService) AdminUpdateUser(ctx context.Context, userID string, 
 		return domain.PublicUser{}, ErrForbidden
 	}
 
-	updated, err := service.applyUserUpdate(user, input, false)
+	updated, err := service.applyUserUpdate(user, input)
 	if err != nil {
 		return domain.PublicUser{}, err
 	}
@@ -234,7 +234,7 @@ func (service *AuthService) authResult(user domain.User) (AuthResult, error) {
 	return AuthResult{Token: signedToken, User: user.Public()}, nil
 }
 
-func (service *AuthService) applyUserUpdate(user domain.User, input UpdateUserInput, allowAdminChange bool) (domain.User, error) {
+func (service *AuthService) applyUserUpdate(user domain.User, input UpdateUserInput) (domain.User, error) {
 	if strings.TrimSpace(input.Name) != "" {
 		user.Name = strings.TrimSpace(input.Name)
 	}

@@ -344,7 +344,7 @@ func (service *StudyService) AnswerCard(ctx context.Context, userID string, card
 	card.ReviewState = next
 
 	review := core.Review{
-		ID:         fmt.Sprintf("review-%s-%d", cardID, reviewedAt.UnixNano()),
+		ID:         uuid.NewString(),
 		UserID:     userID,
 		CardID:     cardID,
 		Rating:     rating,

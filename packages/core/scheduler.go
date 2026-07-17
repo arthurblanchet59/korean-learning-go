@@ -27,15 +27,15 @@ func (scheduler Scheduler) Schedule(previous State, rating Rating, now time.Time
 	case RatingAgain:
 		next.LapseCount++
 		next.IntervalDays = 0
-		next.EaseFactor = maxFloat(1.3, next.EaseFactor-0.2)
+		next.EaseFactor = max(1.3, next.EaseFactor-0.2)
 		next.NextReviewAt = now.Add(scheduler.AgainDelay)
 	case RatingHard:
-		next.EaseFactor = maxFloat(1.3, next.EaseFactor-0.15)
+		next.EaseFactor = max(1.3, next.EaseFactor-0.15)
 		if previous.IntervalDays <= 0 {
 			next.IntervalDays = 0
 			next.NextReviewAt = now.Add(scheduler.HardDelay)
 		} else {
-			next.IntervalDays = maxInt(1, int(float64(previous.IntervalDays)*0.8))
+			next.IntervalDays = max(1, int(float64(previous.IntervalDays)*0.8))
 			next.NextReviewAt = now.AddDate(0, 0, next.IntervalDays)
 		}
 	case RatingGood:
@@ -55,7 +55,7 @@ func nextGoodInterval(previous int, ease float64) int {
 		return 1
 	}
 
-	return maxInt(previous+1, int(float64(previous)*ease))
+	return max(previous+1, int(float64(previous)*ease))
 }
 
 func nextEasyInterval(previous int, ease float64) int {
@@ -63,21 +63,5 @@ func nextEasyInterval(previous int, ease float64) int {
 		return 4
 	}
 
-	return maxInt(previous+3, int(float64(previous)*ease*1.3))
-}
-
-func maxInt(a int, b int) int {
-	if a > b {
-		return a
-	}
-
-	return b
-}
-
-func maxFloat(a float64, b float64) float64 {
-	if a > b {
-		return a
-	}
-
-	return b
+	return max(previous+3, int(float64(previous)*ease*1.3))
 }
