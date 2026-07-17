@@ -40,7 +40,7 @@ homebrew_casks:
     binaries:
       - korean-tui
     repository:
-      owner: arthurblanchet59
+      owner: hilarraz
       name: homebrew-tap
       branch: main
       token: "{{ .Env.TAP_GITHUB_TOKEN }}"
