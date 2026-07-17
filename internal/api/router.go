@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -9,9 +10,15 @@ import (
 )
 
 type Handler struct {
-	study *service.StudyService
-	auth  *service.AuthService
-	admin *service.AdminService
+	study  *service.StudyService
+	auth   *service.AuthService
+	admin  *service.AdminService
+	backup *service.ClientBackupService
+}
+
+type clientBackupRequest struct {
+	Config json.RawMessage `json:"config" binding:"required"`
+	State  json.RawMessage `json:"state" binding:"required"`
 }
 
 type answerRequest struct {
@@ -101,8 +108,8 @@ type updateUserRequest struct {
 	Password string `json:"password" binding:"omitempty,min=8,max=120"`
 }
 
-func NewRouter(study *service.StudyService, auth *service.AuthService, adminService *service.AdminService, middlewares ...gin.HandlerFunc) *gin.Engine {
-	handler := &Handler{study: study, auth: auth, admin: adminService}
+func NewRouter(study *service.StudyService, auth *service.AuthService, adminService *service.AdminService, backupService *service.ClientBackupService, middlewares ...gin.HandlerFunc) *gin.Engine {
+	handler := &Handler{study: study, auth: auth, admin: adminService, backup: backupService}
 
 	router := gin.New()
 	if len(middlewares) > 0 {
@@ -135,6 +142,8 @@ func NewRouter(study *service.StudyService, auth *service.AuthService, adminServ
 	api.POST("/reset", requireAdmin(), handler.resetDatabase)
 	api.DELETE("/reset", requireAdmin(), handler.resetDatabase)
 	api.GET("/search", handler.searchAll)
+	api.GET("/client-backup", handler.getClientBackup)
+	api.PUT("/client-backup", handler.saveClientBackup)
 	api.GET("/decks", handler.listDecks)
 	api.GET("/decks/search", handler.searchDecks)
 	api.POST("/decks", handler.createDeck)

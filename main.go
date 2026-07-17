@@ -35,6 +35,7 @@ func main() {
 	studyService := service.NewStudyService(store, store, store, store, store, core.NewScheduler())
 	authService := service.NewAuthService(store, cfg.JWTSecret)
 	adminService := service.NewAdminService(store)
+	backupService := service.NewClientBackupService(store)
 	if err := authService.EnsureAdmin(
 		ctx,
 		cfg.AdminName,
@@ -53,6 +54,7 @@ func main() {
 		studyService,
 		authService,
 		adminService,
+		backupService,
 		appLogger.AccessMiddleware(),
 		appLogger.RecoveryMiddleware(),
 	)

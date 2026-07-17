@@ -12,6 +12,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+func keyEnter() tea.KeyMsg {
+	return tea.KeyMsg{Type: tea.KeyEnter}
+}
+
 func TestSplitFields(t *testing.T) {
 	fields := splitFields("deck-id | 안녕하세요 | bonjour")
 	if len(fields) != 3 || fields[1] != "안녕하세요" {
@@ -39,6 +43,26 @@ func TestStudyViewHidesAnswerUntilReveal(t *testing.T) {
 	revealed := m.studyView(100, 24)
 	if !strings.Contains(revealed, "maison") || !strings.Contains(revealed, "jip") {
 		t.Fatalf("revealed answer is incomplete: %q", revealed)
+	}
+}
+
+func TestHomeViewShowsMainApplicationOptions(t *testing.T) {
+	m := model{data: DashboardData{User: User{Name: "Arthur"}, Stats: core.StudyStats{DueCards: 4}}}
+	view := m.homeView(110, 28)
+	for _, expected := range []string{"Réviser maintenant", "Gérer ma bibliothèque", "Continuer les leçons", "Thème, API et backup"} {
+		if !strings.Contains(view, expected) {
+			t.Fatalf("home screen is missing %q: %q", expected, view)
+		}
+	}
+}
+
+func TestSettingsViewExposesThemesLocalFilesAndBackupActions(t *testing.T) {
+	m := model{config: defaultConfig(), activeUserID: "user-1", tab: tabSettings}
+	view := m.settingsView(120, 30)
+	for _, expected := range []string{"Émeraude", "Océan", "Ambre", "Rose", "config.json", "state.json", "u envoyer", "o restaurer"} {
+		if !strings.Contains(view, expected) {
+			t.Fatalf("settings screen is missing %q: %q", expected, view)
+		}
 	}
 }
 
@@ -257,5 +281,36 @@ func TestRegistrationFormSubmitsDisplayedValues(t *testing.T) {
 	}
 	if payload["name"] != "testabt" || payload["email"] != "test@gmail.com" || payload["password"] != "testtest" {
 		t.Fatalf("form values changed before submission: %#v", payload)
+	}
+}
+
+func TestBackupClientUsesProtectedEndpoint(t *testing.T) {
+	var method, authorization string
+	var payload map[string]json.RawMessage
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		method = request.Method
+		authorization = request.Header.Get("Authorization")
+		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+			t.Fatal(err)
+		}
+		response.Header().Set("Content-Type", "application/json")
+		_, _ = response.Write([]byte(`{"config":{"version":1,"apiUrl":"https://example.test","theme":"ocean"},"state":{"version":1,"activeView":"home","studyDirection":"korean-to-french","libraryCards":true},"updatedAt":"2026-07-15T08:00:00Z"}`))
+	}))
+	defer server.Close()
+
+	client := NewAPIClient(server.URL)
+	client.Token = "backup-token"
+	backup, err := client.UploadBackup(
+		AppConfig{Version: 1, APIURL: "https://example.test", Theme: "ocean"},
+		AppState{Version: 1, ActiveView: "home", StudyDirection: "korean-to-french", LibraryCards: true},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if method != http.MethodPut || authorization != "Bearer backup-token" {
+		t.Fatalf("unexpected request: %s %s", method, authorization)
+	}
+	if len(payload["config"]) == 0 || len(payload["state"]) == 0 || backup.Config.Theme != "ocean" {
+		t.Fatalf("unexpected backup exchange: payload=%#v backup=%#v", payload, backup)
 	}
 }

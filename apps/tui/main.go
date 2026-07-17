@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/arthurblanchet59/korean-learning-go/packages/core"
 	tea "github.com/charmbracelet/bubbletea"
@@ -12,27 +13,52 @@ import (
 )
 
 var (
-	green       = lipgloss.Color("#4EA67A")
-	brightGreen = lipgloss.Color("#78D7A6")
-	red         = lipgloss.Color("#E05A47")
-	muted       = lipgloss.Color("#7E8B86")
-	panel       = lipgloss.Color("#17211E")
-	border      = lipgloss.Color("#395048")
-	text        = lipgloss.Color("#F1F5F3")
-
-	baseStyle     = lipgloss.NewStyle().Foreground(text)
-	activeStyle   = lipgloss.NewStyle().Foreground(brightGreen).Bold(true)
-	mutedStyle    = lipgloss.NewStyle().Foreground(muted)
-	redStyle      = lipgloss.NewStyle().Foreground(red)
-	selectedStyle = lipgloss.NewStyle().Background(green).Foreground(lipgloss.Color("#08110E")).Bold(true)
-	panelStyle    = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(border).Background(panel).Padding(1, 2)
-	errorStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF8B78")).Bold(true)
+	green, brightGreen, red, muted, panel, border, text lipgloss.Color
+	baseStyle, activeStyle, mutedStyle, redStyle        lipgloss.Style
+	selectedStyle, panelStyle, errorStyle               lipgloss.Style
 )
 
-var tabs = []string{"RÉVISION", "BIBLIOTHÈQUE", "LEÇONS", "JOURNAL", "PROGRESSION", "RECHERCHE", "PROFIL"}
+type themeDefinition struct {
+	ID          string
+	Name        string
+	Description string
+	Accent      string
+	Bright      string
+	Danger      string
+	Muted       string
+	Panel       string
+	Border      string
+	Text        string
+	Selection   string
+}
+
+var themes = []themeDefinition{
+	{ID: "emerald", Name: "Émeraude", Description: "Vert profond et accents lumineux", Accent: "#4EA67A", Bright: "#78D7A6", Danger: "#E05A47", Muted: "#7E8B86", Panel: "#17211E", Border: "#395048", Text: "#F1F5F3", Selection: "#08110E"},
+	{ID: "ocean", Name: "Océan", Description: "Bleu calme avec contraste cyan", Accent: "#4E91B8", Bright: "#82C7EA", Danger: "#F07167", Muted: "#82939E", Panel: "#121D27", Border: "#35536A", Text: "#F2F7FA", Selection: "#07131B"},
+	{ID: "amber", Name: "Ambre", Description: "Or chaud sur fond anthracite", Accent: "#D1A447", Bright: "#F0CD73", Danger: "#E66A4E", Muted: "#948B78", Panel: "#211D16", Border: "#5B4E32", Text: "#F8F3E7", Selection: "#171006"},
+	{ID: "rose", Name: "Rose", Description: "Framboise douce et gris fumé", Accent: "#B85D7A", Bright: "#E88EAB", Danger: "#F06B5D", Muted: "#92858B", Panel: "#21191D", Border: "#60404B", Text: "#FAF2F5", Selection: "#190B10"},
+}
+
+const (
+	tabHome = iota
+	tabStudy
+	tabLibrary
+	tabLessons
+	tabJournal
+	tabStats
+	tabSearch
+	tabSettings
+	tabProfile
+	tabAdmin
+)
+
+var tabs = []string{"ACCUEIL", "RÉVISION", "BIBLIOTHÈQUE", "LEÇONS", "JOURNAL", "PROGRESSION", "RECHERCHE", "PARAMÈTRES", "PROFIL"}
+var tabIDs = []string{"home", "study", "library", "lessons", "journal", "stats", "search", "settings", "profile"}
 
 type model struct {
 	client         *APIClient
+	config         AppConfig
+	activeUserID   string
 	data           DashboardData
 	search         SearchResult
 	width          int
@@ -64,6 +90,7 @@ type model struct {
 	adminEmail     string
 	adminPass      string
 	studyDirection string
+	lastBackupAt   time.Time
 	status         string
 	err            error
 }
@@ -91,11 +118,20 @@ type checkMsg struct {
 	result core.AnswerCheck
 	err    error
 }
+type backupMsg struct {
+	action string
+	backup RemoteBackup
+	err    error
+}
+
+func init() {
+	applyTheme("emerald")
+}
 
 var version = "dev"
 
 func main() {
-	apiURL := flag.String("api", envOr("KOREAN_API_URL", "http://localhost:8080"), "URL du backend")
+	apiURL := flag.String("api", "", "URL du backend (prioritaire sur config.json)")
 	showVersion := flag.Bool("version", false, "Affiche la version et quitte")
 	flag.Parse()
 
@@ -104,8 +140,41 @@ func main() {
 		return
 	}
 
-	client := NewAPIClient(*apiURL)
-	application := model{client: client, loggedIn: client.Token != "", loading: client.Token != "", libraryCards: true, loginEmail: "admin@korean.local", studyDirection: "korean-to-french"}
+	configValue, configErr := loadConfig()
+	stateValue, stateErr := loadState()
+	if envURL := strings.TrimSpace(os.Getenv("KOREAN_API_URL")); envURL != "" {
+		configValue.APIURL = envURL
+	}
+	if strings.TrimSpace(*apiURL) != "" {
+		configValue.APIURL = *apiURL
+	}
+	if normalized, err := normalizeConfig(configValue); err == nil {
+		configValue = normalized
+	} else {
+		configErr = err
+		configValue = defaultConfig()
+	}
+	_ = saveConfig(configValue)
+	_ = saveState(stateValue)
+	applyTheme(configValue.Theme)
+
+	client := NewAPIClient(configValue.APIURL)
+	application := model{
+		client:         client,
+		config:         configValue,
+		loggedIn:       client.Token != "",
+		loading:        client.Token != "",
+		libraryCards:   stateValue.LibraryCards,
+		loginEmail:     "admin@korean.local",
+		studyDirection: stateValue.StudyDirection,
+		tab:            tabIndexForID(stateValue.ActiveView),
+	}
+	application.resetCursorForTab()
+	if configErr != nil {
+		application.status = configErr.Error()
+	} else if stateErr != nil {
+		application.status = stateErr.Error()
+	}
 	if _, err := tea.NewProgram(application, tea.WithAltScreen()).Run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -129,10 +198,19 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = msg.err
 		if msg.err == nil {
 			m.data = msg.data
+			if m.activeUserID != msg.data.User.ID {
+				m.activateUserProfile(msg.data.User.ID)
+			}
 			m.status = "Données synchronisées"
+			if m.tab == tabAdmin && !m.data.User.IsAdmin {
+				m.tab = tabHome
+			}
 			m.cursor = clamp(m.cursor, 0, max(0, m.itemCount()-1))
+			m.persistState()
 		} else if strings.Contains(strings.ToLower(msg.err.Error()), "token") || strings.Contains(strings.ToLower(msg.err.Error()), "unauthorized") {
+			m.persistState()
 			m.loggedIn = false
+			m.activeUserID = ""
 			m.client.Token = ""
 			_ = os.Remove(tokenPath())
 		}
@@ -142,6 +220,7 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = msg.err
 		if msg.err == nil {
 			m.loggedIn = true
+			m.activateUserProfile(msg.result.User.ID)
 			m.status = "Bienvenue " + msg.result.User.Name
 			m.loading = true
 			return m, loadDashboard(m.client)
@@ -185,6 +264,46 @@ func (m model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 				m.status = "Réponse attendue : " + msg.result.Expected
 			}
 		}
+		return m, nil
+	case backupMsg:
+		m.loading = false
+		m.err = msg.err
+		if msg.err != nil {
+			return m, nil
+		}
+		m.lastBackupAt = msg.backup.UpdatedAt
+		if msg.action == "upload" {
+			m.status = "Configuration et état sauvegardés sur le serveur"
+			return m, nil
+		}
+
+		configValue, err := normalizeConfig(msg.backup.Config)
+		if err != nil {
+			m.err = err
+			return m, nil
+		}
+		stateValue := normalizeState(msg.backup.State)
+		if err := saveUserConfig(m.activeUserID, configValue); err != nil {
+			m.err = err
+			return m, nil
+		}
+		if err := saveUserState(m.activeUserID, stateValue); err != nil {
+			m.err = err
+			return m, nil
+		}
+		_ = saveConfig(configValue)
+		m.config = configValue
+		m.client.BaseURL = configValue.APIURL
+		m.libraryCards = stateValue.LibraryCards
+		m.studyDirection = stateValue.StudyDirection
+		m.tab = tabIndexForID(stateValue.ActiveView)
+		if m.tab == tabAdmin && !m.data.User.IsAdmin {
+			m.tab = tabHome
+		}
+		m.resetCursorForTab()
+		m.detailScroll = 0
+		applyTheme(configValue.Theme)
+		m.status = "Backup restauré depuis le serveur"
 		return m, nil
 	case tea.KeyMsg:
 		if !m.loggedIn {
@@ -384,12 +503,29 @@ func (m model) updateInput(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if value == "" {
 			return m, nil
 		}
+		if mode == "api-url" {
+			apiURL, err := normalizeAPIURL(value)
+			if err != nil {
+				m.err = err
+				return m, nil
+			}
+			m.config.APIURL = apiURL
+			if err := saveUserConfig(m.activeUserID, m.config); err != nil {
+				m.err = err
+				return m, nil
+			}
+			_ = saveConfig(m.config)
+			m.client.BaseURL = apiURL
+			m.status = "URL de l'API enregistrée"
+			m.err = nil
+			return m, nil
+		}
 		m.loading, m.err = true, nil
 		if mode == "answer" && len(m.data.Due) > 0 {
 			return m, checkCommand(m.client, m.data.Due[m.cursor].ID, value, m.studyDirection)
 		}
 		if mode == "search" {
-			m.tab = 5
+			m.tab = tabSearch
 			m.cursor = 0
 			return m, searchCommand(m.client, value)
 		}
@@ -405,6 +541,7 @@ func (m model) updateInput(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m model) updateNavigation(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch key.String() {
 	case "q", "ctrl+c":
+		m.persistState()
 		return m, tea.Quit
 	case "D":
 		return m.logout(), nil
@@ -418,12 +555,12 @@ func (m model) updateNavigation(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.input = ""
 	case "h", "left":
 		m.tab = (m.tab - 1 + len(m.visibleTabs())) % len(m.visibleTabs())
-		m.cursor = 0
+		m.resetCursorForTab()
 		m.detailScroll = 0
 		m.revealed = false
 	case "l", "right":
 		m.tab = (m.tab + 1) % len(m.visibleTabs())
-		m.cursor = 0
+		m.resetCursorForTab()
 		m.detailScroll = 0
 		m.revealed = false
 	case "j", "down":
@@ -442,23 +579,23 @@ func (m model) updateNavigation(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.loading = true
 		return m, loadDashboard(m.client)
 	case "tab":
-		if m.tab == 1 {
+		if m.tab == tabLibrary {
 			m.libraryCards = !m.libraryCards
 			m.cursor = 0
 			m.detailScroll = 0
 		}
 	case " ":
-		if m.tab == 0 {
+		if m.tab == tabStudy {
 			m.revealed = true
 		}
 	case "a":
-		if m.tab == 0 && len(m.data.Due) > 0 {
+		if m.tab == tabStudy && len(m.data.Due) > 0 {
 			m.inputMode = "answer"
 			m.input = ""
 			m.status = "Écris ta réponse"
 		}
 	case "v":
-		if m.tab == 0 {
+		if m.tab == tabStudy {
 			if m.studyDirection == "korean-to-french" {
 				m.studyDirection = "french-to-korean"
 			} else {
@@ -467,37 +604,57 @@ func (m model) updateNavigation(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.revealed = false
 		}
 	case "1", "2", "3", "4":
-		if m.tab == 0 && m.revealed && len(m.data.Due) > 0 {
+		if m.tab == tabStudy && m.revealed && len(m.data.Due) > 0 {
 			ratings := map[string]string{"1": "again", "2": "hard", "3": "good", "4": "easy"}
 			m.loading = true
 			return m, answerCommand(m.client, m.data.Due[m.cursor].ID, ratings[key.String()])
 		}
 	case "enter":
-		if m.tab == 2 && len(m.data.Lessons) > 0 && !m.data.Lessons[m.cursor].Progress.Completed {
+		if m.tab == tabHome && len(homeOptions) > 0 {
+			m.tab = homeOptions[clamp(m.cursor, 0, len(homeOptions)-1)].Tab
+			m.resetCursorForTab()
+			m.persistState()
+			return m, nil
+		}
+		if m.tab == tabSettings && len(themes) > 0 {
+			theme := themes[clamp(m.cursor, 0, len(themes)-1)]
+			m.config.Theme = applyTheme(theme.ID)
+			if err := saveUserConfig(m.activeUserID, m.config); err != nil {
+				m.err = err
+			} else {
+				m.status = "Thème " + theme.Name + " enregistré"
+				m.err = nil
+			}
+		}
+		if m.tab == tabLessons && len(m.data.Lessons) > 0 && !m.data.Lessons[m.cursor].Progress.Completed {
 			m.loading = true
 			return m, executeCommand(m.client, "lesson-complete "+m.data.Lessons[m.cursor].ID)
 		}
 	case "n":
 		m.inputMode = "command"
 		switch m.tab {
-		case 1:
+		case tabLibrary:
 			if m.libraryCards {
 				m.input = "card-add "
 			} else {
 				m.input = "deck-add "
 			}
-		case 3:
+		case tabJournal:
 			m.input = "journal-add "
 		}
 	case "e":
-		if m.tab == 6 {
+		if m.tab == tabSettings {
+			m.inputMode = "api-url"
+			m.input = m.config.APIURL
+			m.status = "Nouvelle URL de l'API"
+		} else if m.tab == tabProfile {
 			m.profileEditing = true
 			m.profileField = 0
 			m.profileName = m.data.User.Name
 			m.profileEmail = m.data.User.Email
 			m.profilePass = ""
 			m.err = nil
-		} else if m.tab == 7 && len(m.data.Users) > 0 {
+		} else if m.tab == tabAdmin && len(m.data.Users) > 0 {
 			user := m.data.Users[m.cursor]
 			m.adminEditing = true
 			m.adminField = 0
@@ -508,7 +665,7 @@ func (m model) updateNavigation(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.err = nil
 		}
 	case "x":
-		if m.tab == 7 && m.data.User.IsAdmin {
+		if m.tab == tabAdmin && m.data.User.IsAdmin {
 			m.inputMode = "command"
 			m.input = "reset CONFIRM"
 		}
@@ -517,17 +674,37 @@ func (m model) updateNavigation(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.loading = true
 			return m, executeCommand(m.client, command)
 		}
+	case "u":
+		if m.tab == tabSettings {
+			state := m.appState()
+			if err := saveUserState(m.activeUserID, state); err != nil {
+				m.err = err
+				break
+			}
+			m.loading = true
+			m.err = nil
+			return m, uploadBackupCommand(m.client, m.config, state)
+		}
+	case "o":
+		if m.tab == tabSettings {
+			m.loading = true
+			m.err = nil
+			return m, downloadBackupCommand(m.client)
+		}
 	}
+	m.persistState()
 	return m, nil
 }
 
 func (m model) logout() model {
+	m.persistState()
 	m.client.Token = ""
 	_ = os.Remove(tokenPath())
 	m.loggedIn = false
+	m.activeUserID = ""
 	m.data = DashboardData{}
 	m.search = SearchResult{}
-	m.tab = 0
+	m.tab = tabHome
 	m.cursor = 0
 	m.loading = false
 	m.profileEditing = false
@@ -602,7 +779,7 @@ func (m model) headerView(width int) string {
 			items = append(items, mutedStyle.Padding(0, 1).Render(tab))
 		}
 	}
-	return lipgloss.NewStyle().Width(width).Padding(0, 1).Render(brand + "\n" + strings.Join(items, " "))
+	return lipgloss.NewStyle().Width(width).Padding(0, 1).Render(brand + "\n" + wrapHeaderItems(items, max(20, width-4)))
 }
 
 func (m model) bodyView(width int, height int) string {
@@ -610,23 +787,102 @@ func (m model) bodyView(width int, height int) string {
 		return panelStyle.Width(width - 6).Height(height - 2).Render("Synchronisation avec l'API...")
 	}
 	switch m.tab {
-	case 0:
+	case tabHome:
+		return m.homeView(width, height)
+	case tabStudy:
 		return m.studyView(width, height)
-	case 1:
+	case tabLibrary:
 		return m.libraryView(width, height)
-	case 2:
+	case tabLessons:
 		return m.lessonsView(width, height)
-	case 3:
+	case tabJournal:
 		return m.journalView(width, height)
-	case 4:
+	case tabStats:
 		return m.statsView(width, height)
-	case 5:
+	case tabSearch:
 		return m.searchView(width, height)
-	case 6:
+	case tabSettings:
+		return m.settingsView(width, height)
+	case tabProfile:
 		return m.profileView(width, height)
 	default:
 		return m.adminView(width, height)
 	}
+}
+
+type homeOption struct {
+	Title       string
+	Description string
+	Tab         int
+}
+
+var homeOptions = []homeOption{
+	{Title: "Réviser maintenant", Description: "Travailler les cartes dues", Tab: tabStudy},
+	{Title: "Gérer ma bibliothèque", Description: "Cartes, decks et import CSV", Tab: tabLibrary},
+	{Title: "Continuer les leçons", Description: "Parcours guidé de coréen", Tab: tabLessons},
+	{Title: "Écrire dans le journal", Description: "Pratiquer avec des corrections", Tab: tabJournal},
+	{Title: "Voir ma progression", Description: "Statistiques et cartes difficiles", Tab: tabStats},
+	{Title: "Configurer l'application", Description: "Thème, API et backup", Tab: tabSettings},
+}
+
+func (m model) homeView(width, height int) string {
+	leftWidth := max(38, width/2)
+	menu := "QUE VEUX-TU FAIRE ?\n\n"
+	for index, option := range homeOptions {
+		menu += listLine(index == m.cursor, option.Title, option.Description) + "\n"
+	}
+	menu += "\n" + mutedStyle.Render("j/k choisir · entrée ouvrir")
+
+	summary := "BONJOUR " + strings.ToUpper(m.data.User.Name) + "\n\n"
+	summary += fmt.Sprintf("Cartes dues aujourd'hui    %d\n", m.data.Stats.DueCards)
+	summary += fmt.Sprintf("Cartes maîtrisées         %d\n", m.data.Stats.MasteredCards)
+	summary += fmt.Sprintf("Série actuelle            %d jours\n\n", m.data.Stats.CurrentStreak)
+	summary += activeStyle.Render("Objectif du jour") + "\n"
+	if m.data.Stats.DueCards > 0 {
+		summary += "Révise quelques cartes, puis avance dans une leçon."
+	} else {
+		summary += "La file est terminée : profite-en pour apprendre ou écrire."
+	}
+
+	return lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		panelStyle.Width(leftWidth).Height(height-2).Render(menu),
+		panelStyle.Width(width-leftWidth-9).Height(height-2).Render(summary),
+	)
+}
+
+func (m model) settingsView(width, height int) string {
+	leftWidth := max(34, width/3)
+	list := "THÈMES DE COULEURS\n\n"
+	for index, theme := range themes {
+		state := theme.Description
+		if theme.ID == m.config.Theme {
+			state = "Actif · " + state
+		}
+		list += listLine(index == m.cursor, theme.Name, state) + "\n"
+	}
+	list += "\n" + mutedStyle.Render("j/k choisir · entrée appliquer")
+
+	backupStatus := "Aucun backup durant cette session"
+	if !m.lastBackupAt.IsZero() {
+		backupStatus = "Dernier backup : " + m.lastBackupAt.Local().Format("02/01/2006 15:04")
+	}
+	detailWidth := max(24, width-leftWidth-13)
+	detail := "PARAMÈTRES\n\n"
+	detail += activeStyle.Render("Thème actuel") + "\n" + themeName(m.config.Theme) + "  " + activeStyle.Render("██") + redStyle.Render("██") + "\n\n"
+	detail += activeStyle.Render("Serveur API") + "\n" + truncate(m.config.APIURL, detailWidth) + "\n" + mutedStyle.Render("e modifier l'URL") + "\n\n"
+	detail += activeStyle.Render("Fichiers locaux JSON") + "\n"
+	detail += "config.json · state.json\n"
+	detail += truncate(userConfigDirectory(m.activeUserID), detailWidth) + "\n\n"
+	detail += activeStyle.Render("Backup personnel") + "\n" + backupStatus + "\n"
+	detail += mutedStyle.Render("u envoyer vers le serveur · o restaurer depuis le serveur") + "\n\n"
+	detail += mutedStyle.Render("Le token JWT est volontairement exclu du backup.")
+
+	return lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		panelStyle.Width(leftWidth).Height(height-2).Render(list),
+		panelStyle.Width(width-leftWidth-9).Height(height-2).Render(detail),
+	)
 }
 
 func (m model) studyView(width, height int) string {
@@ -840,7 +1096,7 @@ func (m model) adminView(width, height int) string {
 }
 
 func (m model) helpView(width, height int) string {
-	help := "AIDE\n\n h/l ou ←/→   changer d'onglet\n j/k ou ↑/↓   naviguer\n PgUp/PgDn    faire défiler le détail\n a             saisir une réponse\n v             inverser KO/FR\n espace        révéler une carte\n 1..4          indiquer la mémorisation\n n             créer dans la vue active\n d             supprimer l'élément actif\n e             modifier le profil ou l'utilisateur sélectionné\n D             se déconnecter\n x             préparer le reset administrateur\n tab           decks/cartes dans la bibliothèque\n /             recherche globale\n :             palette de commandes\n r             actualiser\n ?             fermer l'aide\n q             quitter\n\nCOMMANDES\n deck-add NOM | DESCRIPTION\n deck-update ID | NOM | DESCRIPTION\n decks-description ID1,ID2 | DESCRIPTION\n card-add DECK_ID | CORÉEN | TRADUCTION | ROMANISATION\n card-update ID | CORÉEN | TRADUCTION | ROMANISATION\n cards-move ID1,ID2 | DECK_ID\n journal-add TITRE | TEXTE\n journal-update ID | TITRE | TEXTE\n lesson-complete ID\n import DECK_ID | FICHIER.csv\n export FICHIER.csv"
+	help := "AIDE\n\n h/l ou ←/→   changer d'onglet\n j/k ou ↑/↓   naviguer\n PgUp/PgDn    faire défiler le détail\n a             saisir une réponse\n v             inverser KO/FR\n espace        révéler une carte\n 1..4          indiquer la mémorisation\n n             créer dans la vue active\n d             supprimer l'élément actif\n e             modifier l'URL API, le profil ou un utilisateur\n u             envoyer config + état vers le serveur\n o             restaurer config + état depuis le serveur\n D             se déconnecter\n x             préparer le reset administrateur\n tab           decks/cartes dans la bibliothèque\n /             recherche globale\n :             palette de commandes\n r             actualiser\n ?             fermer l'aide\n q             quitter\n\nCOMMANDES\n deck-add NOM | DESCRIPTION\n deck-update ID | NOM | DESCRIPTION\n decks-description ID1,ID2 | DESCRIPTION\n card-add DECK_ID | CORÉEN | TRADUCTION | ROMANISATION\n card-update ID | CORÉEN | TRADUCTION | ROMANISATION\n cards-move ID1,ID2 | DECK_ID\n journal-add TITRE | TEXTE\n journal-update ID | TITRE | TEXTE\n lesson-complete ID\n import DECK_ID | FICHIER.csv\n export FICHIER.csv"
 	return panelStyle.BorderForeground(brightGreen).Width(width - 6).Height(height - 2).Render(help)
 }
 
@@ -856,6 +1112,8 @@ func (m model) footerView(width int) string {
 		prefix := ":"
 		if m.inputMode == "search" {
 			prefix = "/"
+		} else if m.inputMode == "api-url" {
+			prefix = "API> "
 		}
 		status = activeStyle.Render(prefix) + m.input + "█"
 	}
@@ -866,18 +1124,22 @@ func (m model) footerView(width int) string {
 
 func (m model) itemCount() int {
 	switch m.tab {
-	case 0:
+	case tabHome:
+		return len(homeOptions)
+	case tabStudy:
 		return len(m.data.Due)
-	case 1:
+	case tabLibrary:
 		if m.libraryCards {
 			return len(m.data.Cards)
 		}
 		return len(m.data.Decks)
-	case 2:
+	case tabLessons:
 		return len(m.data.Lessons)
-	case 3:
+	case tabJournal:
 		return len(m.data.Journal)
-	case 7:
+	case tabSettings:
+		return len(themes)
+	case tabAdmin:
 		return len(m.data.Users)
 	}
 	return 0
@@ -885,14 +1147,14 @@ func (m model) itemCount() int {
 
 func (m model) deleteCommand() string {
 	switch m.tab {
-	case 1:
+	case tabLibrary:
 		if m.libraryCards && len(m.data.Cards) > 0 {
 			return "card-delete " + m.data.Cards[m.cursor].ID
 		}
 		if !m.libraryCards && len(m.data.Decks) > 0 {
 			return "deck-delete " + m.data.Decks[m.cursor].ID
 		}
-	case 3:
+	case tabJournal:
 		if len(m.data.Journal) > 0 {
 			return "journal-delete " + m.data.Journal[m.cursor].ID
 		}
@@ -905,6 +1167,146 @@ func (m model) visibleTabs() []string {
 		return tabs
 	}
 	return append(append([]string{}, tabs...), "ADMIN")
+}
+
+func (m *model) resetCursorForTab() {
+	m.cursor = 0
+	if m.tab == tabSettings {
+		m.cursor = themeIndex(m.config.Theme)
+	}
+}
+
+func (m model) appState() AppState {
+	return AppState{
+		Version:        localDataVersion,
+		ActiveView:     m.activeTabID(),
+		StudyDirection: m.studyDirection,
+		LibraryCards:   m.libraryCards,
+		UpdatedAt:      time.Now().UTC(),
+	}
+}
+
+func (m model) persistState() {
+	if m.activeUserID != "" {
+		_ = saveUserState(m.activeUserID, m.appState())
+	}
+}
+
+func (m *model) activateUserProfile(userID string) {
+	if strings.TrimSpace(userID) == "" {
+		return
+	}
+
+	configFallback := defaultConfig()
+	configFallback.APIURL = m.client.BaseURL
+	stateFallback := defaultState()
+	if !hasUserProfiles() {
+		configFallback = m.config
+		if legacyState, err := loadState(); err == nil {
+			stateFallback = legacyState
+		}
+	}
+
+	configValue, configErr := loadUserConfig(userID, configFallback)
+	stateValue, stateErr := loadUserState(userID, stateFallback)
+	if configErr != nil {
+		configValue = configFallback
+	}
+	if stateErr != nil {
+		stateValue = stateFallback
+	}
+	configValue.APIURL = m.client.BaseURL
+	m.activeUserID = userID
+	m.config = configValue
+	m.libraryCards = stateValue.LibraryCards
+	m.studyDirection = stateValue.StudyDirection
+	m.tab = tabIndexForID(stateValue.ActiveView)
+	m.resetCursorForTab()
+	m.detailScroll = 0
+	applyTheme(configValue.Theme)
+	_ = saveUserConfig(userID, configValue)
+	_ = saveUserState(userID, stateValue)
+	if configErr != nil {
+		m.err = configErr
+	} else if stateErr != nil {
+		m.err = stateErr
+	}
+}
+
+func (m model) activeTabID() string {
+	if m.tab == tabAdmin {
+		return "admin"
+	}
+	if m.tab >= 0 && m.tab < len(tabIDs) {
+		return tabIDs[m.tab]
+	}
+	return "home"
+}
+
+func tabIndexForID(id string) int {
+	if id == "admin" {
+		return tabAdmin
+	}
+	for index, candidate := range tabIDs {
+		if candidate == id {
+			return index
+		}
+	}
+	return tabHome
+}
+
+func isViewSupported(id string) bool {
+	if id == "admin" {
+		return true
+	}
+	for _, candidate := range tabIDs {
+		if candidate == id {
+			return true
+		}
+	}
+	return false
+}
+
+func isThemeSupported(id string) bool {
+	for _, theme := range themes {
+		if theme.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+func themeIndex(id string) int {
+	for index, theme := range themes {
+		if theme.ID == id {
+			return index
+		}
+	}
+	return 0
+}
+
+func themeName(id string) string {
+	return themes[themeIndex(id)].Name
+}
+
+func applyTheme(id string) string {
+	theme := themes[themeIndex(id)]
+	green = lipgloss.Color(theme.Accent)
+	brightGreen = lipgloss.Color(theme.Bright)
+	red = lipgloss.Color(theme.Danger)
+	muted = lipgloss.Color(theme.Muted)
+	panel = lipgloss.Color(theme.Panel)
+	border = lipgloss.Color(theme.Border)
+	text = lipgloss.Color(theme.Text)
+
+	baseStyle = lipgloss.NewStyle().Foreground(text)
+	activeStyle = lipgloss.NewStyle().Foreground(brightGreen).Bold(true)
+	mutedStyle = lipgloss.NewStyle().Foreground(muted)
+	redStyle = lipgloss.NewStyle().Foreground(red)
+	selectedStyle = lipgloss.NewStyle().Background(green).Foreground(lipgloss.Color(theme.Selection)).Bold(true)
+	panelStyle = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(border).Background(panel).Padding(1, 2)
+	errorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF8B78")).Bold(true)
+	return theme.ID
 }
 
 func loadDashboard(client *APIClient) tea.Cmd {
@@ -957,6 +1359,18 @@ func adminUpdateUserCommand(client *APIClient, userID, name, email, password str
 func searchCommand(client *APIClient, query string) tea.Cmd {
 	return func() tea.Msg { result, err := client.Search(query); return searchMsg{result: result, err: err} }
 }
+func uploadBackupCommand(client *APIClient, config AppConfig, state AppState) tea.Cmd {
+	return func() tea.Msg {
+		backup, err := client.UploadBackup(config, state)
+		return backupMsg{action: "upload", backup: backup, err: err}
+	}
+}
+func downloadBackupCommand(client *APIClient) tea.Cmd {
+	return func() tea.Msg {
+		backup, err := client.DownloadBackup()
+		return backupMsg{action: "download", backup: backup, err: err}
+	}
+}
 
 func listLine(selected bool, primary, secondary string) string {
 	line := fmt.Sprintf("%-22s %s", truncate(primary, 22), truncate(secondary, 28))
@@ -997,6 +1411,26 @@ func visibleBounds(total, cursor, limit int) (int, int) {
 	end := min(total, start+limit)
 	start = max(0, end-limit)
 	return start, end
+}
+func wrapHeaderItems(items []string, width int) string {
+	rows := make([]string, 0, 2)
+	current := ""
+	for _, item := range items {
+		candidate := item
+		if current != "" {
+			candidate = current + " " + item
+		}
+		if current != "" && lipgloss.Width(candidate) > width {
+			rows = append(rows, current)
+			current = item
+			continue
+		}
+		current = candidate
+	}
+	if current != "" {
+		rows = append(rows, current)
+	}
+	return strings.Join(rows, "\n")
 }
 func max(a, b int) int {
 	if a > b {
@@ -1057,6 +1491,12 @@ func envOr(name, fallback string) string {
 	return fallback
 }
 func commandHint(tab int) string {
-	hints := []string{"", "deck-add / card-add", "lesson-complete", "journal-add", "export", "", "profile", "admin-user / reset"}
+	hints := map[int]string{
+		tabLibrary:  "deck-add / card-add",
+		tabLessons:  "lesson-complete",
+		tabJournal:  "journal-add",
+		tabSettings: "e URL API / u envoyer / o restaurer",
+		tabAdmin:    "admin-user / reset",
+	}
 	return "Commande : " + hints[tab]
 }

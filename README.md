@@ -11,6 +11,7 @@ Application complète d’apprentissage du coréen, construite autour d’une AP
 - leçons guidées de coréen avec suivi de progression ;
 - journal en coréen avec suggestions de correction locales et expliquées ;
 - recherche globale et import/export CSV ;
+- configuration et état JSON du TUI avec backup personnel sur le serveur ;
 - documentation OpenAPI, Swagger UI et exemples de requêtes HTTP ;
 - clients React et TUI utilisant la même API.
 
@@ -68,7 +69,18 @@ Dans un autre terminal, depuis la racine :
 go run ./apps/tui
 ```
 
-Au premier écran, connectez-vous ou utilisez `Ctrl+R` pour créer un compte. Le JWT est conservé dans `~/.korean-learning-go/token`.
+Au premier écran, connectez-vous ou utilisez `Ctrl+R` pour créer un compte. Le JWT est conservé séparément dans `~/.korean-learning-go/token`.
+
+Après la connexion, l'écran **Accueil** présente les principales actions. L'écran **Paramètres** permet de choisir un thème Émeraude, Océan, Ambre ou Rose, de modifier l'URL de l'API et de sauvegarder ou restaurer les préférences depuis le serveur.
+
+Le TUI crée deux documents JSON dans le répertoire de configuration personnel fourni par le système :
+
+- `config.json` : version, URL de l'API et thème de couleurs ;
+- `state.json` : onglet actif, sens de révision et mode cartes/decks.
+
+Après authentification, chaque compte possède sa propre copie dans `users/<identifiant-anonymisé>/`. Changer de compte recharge donc son thème et son état sans écraser ceux du compte précédent. Le `config.json` racine sert uniquement à retrouver l'API avant la connexion et à migrer une ancienne installation.
+
+Le répertoire est généralement `%AppData%\korean-learning-go` sous Windows, `~/.config/korean-learning-go` sous Linux et `~/Library/Application Support/korean-learning-go` sous macOS. Le JWT n'est jamais inclus dans ces documents ni dans leur backup.
 
 Raccourcis principaux :
 
@@ -81,7 +93,10 @@ v            inverser coréen/français
 espace       révéler une carte
 1 à 4        indiquer si la carte est à revoir, hésitante, retenue ou maîtrisée
 n            créer un élément
-d            supprimer l’élément actif
+d            supprimer l'élément actif
+e            modifier l'URL API depuis Paramètres
+u            envoyer config.json et state.json vers le serveur
+o            restaurer config.json et state.json depuis le serveur
 /            rechercher
 :            ouvrir la palette de commandes
 ?            afficher l’aide
@@ -94,7 +109,7 @@ Pour connecter le TUI à une API distante :
 go run ./apps/tui --api "https://mon-app.azurewebsites.net"
 ```
 
-La variable `KOREAN_API_URL` peut également définir cette adresse.
+La variable `KOREAN_API_URL` peut également définir cette adresse. L'ordre de priorité est `--api`, puis `KOREAN_API_URL`, puis `config.json`, puis l'API locale par défaut.
 
 ## Lancement avec Docker
 
@@ -176,6 +191,8 @@ docs/                    architecture, OpenAPI et déploiement
 ```
 
 Le backend est la source de vérité : le frontend et le TUI ne stockent pas les decks, cartes, révisions ou progressions localement. Le découpage détaillé est présenté dans [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+Les préférences d'interface du TUI sont une exception volontaire : elles sont disponibles hors ligne dans les fichiers JSON locaux et peuvent être sauvegardées dans la table SQLite `client_backups`. Les routes protégées `GET /api/client-backup` et `PUT /api/client-backup` isolent automatiquement le backup grâce à l'identité du JWT.
 
 ## Données et logs
 

@@ -107,6 +107,21 @@ func (client *APIClient) UpdateProfile(name string, email string, password strin
 	return client.do(http.MethodPut, "/user/me", payload, nil)
 }
 
+func (client *APIClient) UploadBackup(config AppConfig, state AppState) (RemoteBackup, error) {
+	var backup RemoteBackup
+	err := client.do(http.MethodPut, "/api/client-backup", map[string]any{
+		"config": config,
+		"state":  state,
+	}, &backup)
+	return backup, err
+}
+
+func (client *APIClient) DownloadBackup() (RemoteBackup, error) {
+	var backup RemoteBackup
+	err := client.do(http.MethodGet, "/api/client-backup", nil, &backup)
+	return backup, err
+}
+
 func (client *APIClient) AdminUpdateUser(userID string, name string, email string, password string) error {
 	payload := map[string]string{"name": cleanNameInput(name), "email": cleanEmailInput(email)}
 	if password != "" {

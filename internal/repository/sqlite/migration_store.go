@@ -81,6 +81,13 @@ func (store *Store) Migrate() error {
 			version INTEGER NOT NULL,
 			updated_at TEXT NOT NULL
 		);
+
+		CREATE TABLE IF NOT EXISTS client_backups (
+			user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+			config_json TEXT NOT NULL,
+			state_json TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		);
 	`); err != nil {
 		return err
 	}
