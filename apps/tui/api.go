@@ -61,6 +61,33 @@ func NewAPIClient(baseURL string) *APIClient {
 	return &APIClient{BaseURL: strings.TrimRight(baseURL, "/"), Token: loadToken(), HTTP: &http.Client{Timeout: 12 * time.Second}}
 }
 
+func resolveAvailableAPIURL(primary string, fallback string) (string, bool) {
+	primary = strings.TrimRight(primary, "/")
+	fallback = strings.TrimRight(fallback, "/")
+	if primary == fallback || apiIsHealthy(primary) {
+		return primary, false
+	}
+	if apiIsHealthy(fallback) {
+		return fallback, true
+	}
+	return primary, false
+}
+
+func apiIsHealthy(baseURL string) bool {
+	client := &http.Client{Timeout: 3 * time.Second}
+	request, err := http.NewRequest(http.MethodGet, strings.TrimRight(baseURL, "/")+"/health", nil)
+	if err != nil {
+		return false
+	}
+	response, err := client.Do(request)
+	if err != nil {
+		return false
+	}
+	defer response.Body.Close()
+	_, _ = io.Copy(io.Discard, response.Body)
+	return response.StatusCode >= http.StatusOK && response.StatusCode < http.StatusMultipleChoices
+}
+
 func (client *APIClient) Login(email string, password string) (AuthResult, error) {
 	var result AuthResult
 	err := client.do(http.MethodPost, "/user/login", map[string]string{"email": cleanEmailInput(email), "password": password}, &result)

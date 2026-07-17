@@ -21,6 +21,7 @@ builds:
         goarch: arm64
     ldflags:
       - -s -w -X main.version={{ .Version }}
+      - -X main.defaultAPIURL=https://korean-learning-app-awe6anaeegavazcs.francecentral-01.azurewebsites.net
 
 archives:
   - id: tui

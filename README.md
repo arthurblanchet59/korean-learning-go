@@ -98,7 +98,7 @@ e            modifier l'élément actif, le profil ou l'URL API
 u            envoyer config.json et state.json vers le serveur
 o            restaurer config.json et state.json depuis le serveur
 /            rechercher
-:            ouvrir la palette de commandes
+c ou :       ouvrir la palette de commandes
 ?            afficher l’aide
 q            quitter
 ```
@@ -109,7 +109,23 @@ Pour connecter le TUI à une API distante :
 go run ./apps/tui --api "https://mon-app.azurewebsites.net"
 ```
 
-La variable `KOREAN_API_URL` peut également définir cette adresse. L'ordre de priorité est `--api`, puis `KOREAN_API_URL`, puis `config.json`, puis l'API locale par défaut.
+La variable `KOREAN_API_URL` peut également définir cette adresse. L'ordre de priorité est `--api`, puis `KOREAN_API_URL`, puis `config.json`, puis l'API par défaut intégrée au binaire.
+
+Les binaires GitHub et Homebrew utilisent par défaut l'API Azure :
+
+```text
+https://korean-learning-app-awe6anaeegavazcs.francecentral-01.azurewebsites.net
+```
+
+Au démarrage, le TUI vérifie la route `/health`. Si Azure est indisponible et qu'un backend répond sur `http://localhost:8080`, il utilise automatiquement ce serveur local pour la session sans remplacer l'URL Azure enregistrée. Les options `--api` et `KOREAN_API_URL` restent strictement prioritaires et désactivent ce repli automatique.
+
+Pour utiliser un binaire publié sans Azure, lancez d'abord le backend à la racine du dépôt :
+
+```powershell
+go run .
+```
+
+`go run ./apps/tui` conserve directement `http://localhost:8080` comme valeur par défaut pour le développement.
 
 ## Lancement avec Docker
 

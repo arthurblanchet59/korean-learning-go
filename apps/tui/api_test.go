@@ -24,6 +24,62 @@ func TestSplitFields(t *testing.T) {
 	}
 }
 
+func TestResolveAvailableAPIURLPrefersHealthyPrimary(t *testing.T) {
+	primary := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/health" {
+			t.Fatalf("unexpected primary path: %s", request.URL.Path)
+		}
+		response.WriteHeader(http.StatusOK)
+	}))
+	defer primary.Close()
+
+	fallback := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		t.Fatal("fallback should not be called when primary is healthy")
+	}))
+	defer fallback.Close()
+
+	selected, usedFallback := resolveAvailableAPIURL(primary.URL, fallback.URL)
+	if selected != primary.URL || usedFallback {
+		t.Fatalf("unexpected API selection: url=%q fallback=%t", selected, usedFallback)
+	}
+}
+
+func TestResolveAvailableAPIURLFallsBackToLocalServer(t *testing.T) {
+	unavailable := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	primaryURL := unavailable.URL
+	unavailable.Close()
+
+	fallback := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/health" {
+			t.Fatalf("unexpected fallback path: %s", request.URL.Path)
+		}
+		response.WriteHeader(http.StatusOK)
+	}))
+	defer fallback.Close()
+
+	selected, usedFallback := resolveAvailableAPIURL(primaryURL, fallback.URL)
+	if selected != fallback.URL || !usedFallback {
+		t.Fatalf("local fallback was not selected: url=%q fallback=%t", selected, usedFallback)
+	}
+}
+
+func TestResolveAvailableAPIURLKeepsPrimaryWhenNoServerIsHealthy(t *testing.T) {
+	primary := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		response.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	primaryURL := primary.URL
+	primary.Close()
+	fallback := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		response.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer fallback.Close()
+
+	selected, usedFallback := resolveAvailableAPIURL(primaryURL, fallback.URL)
+	if selected != primaryURL || usedFallback {
+		t.Fatalf("unavailable fallback replaced the primary URL: url=%q fallback=%t", selected, usedFallback)
+	}
+}
+
 func TestVisibleBoundsKeepsCursorVisible(t *testing.T) {
 	start, end := visibleBounds(100, 52, 10)
 	if start > 52 || end <= 52 || end-start != 10 {

@@ -11,7 +11,13 @@ import (
 	"time"
 )
 
-const localDataVersion = 1
+const (
+	localDataVersion = 1
+	localAPIURL      = "http://localhost:8080"
+)
+
+// GoReleaser replaces this value for distributed binaries.
+var defaultAPIURL = localAPIURL
 
 type AppConfig struct {
 	Version int    `json:"version"`
@@ -34,7 +40,7 @@ type RemoteBackup struct {
 }
 
 func defaultConfig() AppConfig {
-	return AppConfig{Version: localDataVersion, APIURL: "http://localhost:8080", Theme: "emerald"}
+	return AppConfig{Version: localDataVersion, APIURL: defaultAPIURL, Theme: "emerald"}
 }
 
 func defaultState() AppState {

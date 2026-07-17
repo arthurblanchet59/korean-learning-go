@@ -151,11 +151,14 @@ func main() {
 
 	configValue, configErr := loadConfig()
 	stateValue, stateErr := loadState()
+	explicitAPIURL := false
 	if envURL := strings.TrimSpace(os.Getenv("KOREAN_API_URL")); envURL != "" {
 		configValue.APIURL = envURL
+		explicitAPIURL = true
 	}
 	if strings.TrimSpace(*apiURL) != "" {
 		configValue.APIURL = *apiURL
+		explicitAPIURL = true
 	}
 	if normalized, err := normalizeConfig(configValue); err == nil {
 		configValue = normalized
@@ -167,7 +170,12 @@ func main() {
 	_ = saveState(stateValue)
 	applyTheme(configValue.Theme)
 
-	client := NewAPIClient(configValue.APIURL)
+	runtimeAPIURL := configValue.APIURL
+	usingLocalFallback := false
+	if !explicitAPIURL {
+		runtimeAPIURL, usingLocalFallback = resolveAvailableAPIURL(configValue.APIURL, localAPIURL)
+	}
+	client := NewAPIClient(runtimeAPIURL)
 	application := model{
 		client:         client,
 		config:         configValue,
@@ -183,6 +191,8 @@ func main() {
 		application.status = configErr.Error()
 	} else if stateErr != nil {
 		application.status = stateErr.Error()
+	} else if usingLocalFallback {
+		application.status = "API distante indisponible : backend local utilisé"
 	}
 	if _, err := tea.NewProgram(application, tea.WithAltScreen()).Run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -996,6 +1006,9 @@ func (m model) settingsView(width, height int) string {
 	detail := "PARAMÈTRES\n\n"
 	detail += activeStyle.Render("Thème actuel") + "\n" + themeName(m.config.Theme) + "  " + activeStyle.Render("██") + redStyle.Render("██") + "\n\n"
 	detail += activeStyle.Render("Serveur API") + "\n" + truncate(m.config.APIURL, detailWidth) + "\n" + mutedStyle.Render("e modifier l'URL") + "\n\n"
+	if m.client != nil && m.client.BaseURL != m.config.APIURL {
+		detail += activeStyle.Render("Repli local actif") + "\n" + m.client.BaseURL + "\n\n"
+	}
 	detail += activeStyle.Render("Fichiers locaux JSON") + "\n"
 	detail += "config.json · state.json\n"
 	detail += truncate(userConfigDirectory(m.activeUserID), detailWidth) + "\n\n"
@@ -1352,7 +1365,7 @@ func (m *model) activateUserProfile(userID string) {
 	}
 
 	configFallback := defaultConfig()
-	configFallback.APIURL = m.client.BaseURL
+	configFallback.APIURL = m.config.APIURL
 	stateFallback := defaultState()
 	if !hasUserProfiles() {
 		configFallback = m.config
@@ -1369,7 +1382,7 @@ func (m *model) activateUserProfile(userID string) {
 	if stateErr != nil {
 		stateValue = stateFallback
 	}
-	configValue.APIURL = m.client.BaseURL
+	configValue.APIURL = m.config.APIURL
 	m.activeUserID = userID
 	m.config = configValue
 	m.libraryCards = stateValue.LibraryCards
