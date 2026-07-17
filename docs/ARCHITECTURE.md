@@ -58,3 +58,19 @@ handler Gin -> ClientBackupService -> ClientBackupRepository -> table client_bac
 ```
 
 Le service valide la taille et la structure JSON avant l'ecriture. La table utilise `user_id` comme cle primaire et garantit un backup courant par utilisateur.
+
+## Correction du journal et RAG
+
+Le service d'apprentissage depend de l'interface `KoreanCorrector`. Sans configuration externe, `LocalKoreanCorrector` applique les regles deterministes historiques. Lorsque les trois variables `AZURE_AI_*` sont presentes, `internal/foundry` appelle le deploiement DeepSeek par l'API OpenAI v1 de Microsoft Foundry.
+
+Si `AZURE_AI_EMBEDDING_MODEL` est aussi configure, `RAGCorrector` enrichit cette correction avec les lecons :
+
+```text
+lecons SQLite -> decoupage -> Cohere Embed v4 -> knowledge_chunks SQLite
+phrase du journal -> embedding de requete -> similarite cosinus -> 4 passages
+passages + phrase -> DeepSeek -> correction + sources -> API -> frontend/TUI
+```
+
+`knowledge_indexes` conserve l'empreinte du corpus. L'indexation au demarrage est donc idempotente et n'appelle pas Azure lorsque les lecons et le modele n'ont pas change. La reconstruction forcee est reservee aux administrateurs.
+
+La cle API reste dans le processus backend. Les reponses du modele sont demandees en JSON, parsees vers les types du package `core` et validees avant leur enregistrement dans SQLite.

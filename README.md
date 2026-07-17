@@ -9,7 +9,7 @@ Application complète d’apprentissage du coréen, construite autour d’une AP
 - révision espacée avec les notes `again`, `hard`, `good` et `easy` ;
 - sessions quotidiennes, cartes difficiles, statistiques et séries de révision ;
 - leçons guidées de coréen avec suivi de progression ;
-- journal en coréen avec suggestions de correction locales et expliquées ;
+- journal en coréen avec corrections expliquées, locales ou générées par Microsoft Foundry à partir des leçons pertinentes ;
 - recherche globale et import/export CSV ;
 - configuration et état JSON du TUI avec backup personnel sur le serveur ;
 - documentation OpenAPI, Swagger UI et exemples de requêtes HTTP ;
@@ -143,6 +143,13 @@ Les variables disponibles sont documentées dans [`.env.example`](.env.example).
 | `ADMIN_NAME` | `Admin` | Nom du compte administrateur initial |
 | `ADMIN_EMAIL` | `admin@korean.local` | Adresse administrateur initiale |
 | `ADMIN_PASSWORD` | `admin123` | Mot de passe administrateur initial |
+| `AZURE_AI_ENDPOINT` | vide | URL de la ressource Microsoft Foundry ; active la correction LLM avec les deux variables suivantes |
+| `AZURE_AI_API_KEY` | vide | Clé API Foundry, conservée uniquement par le backend |
+| `AZURE_AI_MODEL` | vide | Nom du déploiement, par exemple `DeepSeek-V3.2` |
+| `AZURE_AI_EMBEDDING_ENDPOINT` | vide | URL du déploiement Cohere Embed ; utilise `AZURE_AI_ENDPOINT` si elle est vide |
+| `AZURE_AI_EMBEDDING_API_KEY` | vide | Clé du déploiement Embed ; utilise `AZURE_AI_API_KEY` si elle est vide |
+| `AZURE_AI_EMBEDDING_MODEL` | vide | Nom du déploiement, par exemple `embed-v-4-0` ; active le RAG |
+| `AZURE_AI_EMBEDDING_DIMENSIONS` | `1024` | Taille des vecteurs Cohere : 256, 512, 1024 ou 1536 |
 | `VITE_API_BASE_URL` | `http://localhost:8080/api` | API utilisée par React au moment du build |
 
 Exemple PowerShell :
@@ -154,6 +161,34 @@ go run .
 ```
 
 Le fichier `.env.example` sert de référence : l’application Go ne charge pas automatiquement un fichier `.env`.
+
+### Correction du journal avec Microsoft Foundry
+
+Le journal utilise le correcteur local tant que les variables Azure sont vides. Pour activer DeepSeek, récupérer l’endpoint et la clé dans Microsoft Foundry puis lancer le backend ainsi :
+
+Pour le développement local, copie `.env.example` vers `.env` et complète les valeurs. `go run .` charge automatiquement `.env`, sans remplacer les variables déjà définies dans le terminal. Le fichier `.env` est ignoré par Git.
+
+```powershell
+$env:AZURE_AI_ENDPOINT = "https://<ressource>.services.ai.azure.com"
+$env:AZURE_AI_API_KEY = "<cle-api>"
+$env:AZURE_AI_MODEL = "DeepSeek-V3.2"
+go run .
+```
+
+L’endpoint peut aussi être l’URL de base terminée par `/openai/v1` ou l’URL complète terminée par `/chat/completions`. La clé n’est jamais envoyée au frontend ni au TUI : les deux clients passent par les routes protégées `/api/journal` et `/api/journal/correct`.
+
+Pour enrichir les corrections avec les leçons, déployer Cohere Embed v4 puis ajouter :
+
+```powershell
+$env:AZURE_AI_EMBEDDING_ENDPOINT = "https://<ressource>.services.ai.azure.com"
+$env:AZURE_AI_EMBEDDING_API_KEY = "<cle-api>"
+$env:AZURE_AI_EMBEDDING_MODEL = "embed-v-4-0"
+$env:AZURE_AI_EMBEDDING_DIMENSIONS = "1024"
+```
+
+Au démarrage, le backend découpe les leçons, calcule leurs embeddings et stocke l’index dans SQLite. Il ne recalcule cet index que si le corpus, le modèle ou la dimension change. Une correction recherche ensuite les quatre passages les plus proches, les transmet à DeepSeek et renvoie les leçons utilisées. Un administrateur peut contrôler l’état via `GET /api/rag/status` et reconstruire l’index via `POST /admin/rag/reindex`, le panel web ou la touche `i` du TUI.
+
+Le client détecte automatiquement les ressources Foundry unifiées en `services.ai.azure.com` et utilise leur route `/models/embeddings`. Il reste compatible avec un endpoint Cohere dédié en `models.ai.azure.com`.
 
 ## Tests et qualité
 

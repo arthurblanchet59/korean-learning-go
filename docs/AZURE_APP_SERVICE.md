@@ -49,11 +49,20 @@ JWT_SECRET=<secret long et aleatoire>
 ADMIN_NAME=Admin
 ADMIN_EMAIL=<adresse de l'administrateur>
 ADMIN_PASSWORD=<mot de passe fort d'au moins 8 caracteres>
+AZURE_AI_ENDPOINT=https://<ressource-foundry>.services.ai.azure.com
+AZURE_AI_API_KEY=<cle-api-foundry>
+AZURE_AI_MODEL=DeepSeek-V3.2
+AZURE_AI_EMBEDDING_ENDPOINT=https://<ressource-foundry>.services.ai.azure.com
+AZURE_AI_EMBEDDING_API_KEY=<cle-api-embed>
+AZURE_AI_EMBEDDING_MODEL=embed-v-4-0
+AZURE_AI_EMBEDDING_DIMENSIONS=1024
 ```
 
 Ne pas definir `WEB_ROOT`: l'image le configure deja sur `/app/web`. Enregistrer les variables puis redemarrer l'App Service.
 
 `WEBSITES_ENABLE_APP_SERVICE_STORAGE=true` est indispensable. Sans cette valeur, la base SQLite disparait lors du remplacement du conteneur.
+
+Les trois premières variables `AZURE_AI_*` activent la correction du journal avec le deploiement Standard global de Microsoft Foundry. Les variables `AZURE_AI_EMBEDDING_*` ajoutent la recherche dans les lecons avec Cohere Embed v4. Les cles sont des secrets du backend et ne doivent jamais etre ajoutees aux variables Vite, au depot Git ou au TUI.
 
 ## 4. Lancer le premier deploiement
 

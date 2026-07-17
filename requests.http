@@ -233,6 +233,17 @@ Content-Type: application/json
   "text": "저 는 오늘 한국어를 공부 해요"
 }
 
+### RAG pedagogical index status
+GET {{baseUrl}}/api/rag/status
+Authorization: Bearer {{token}}
+
+### Rebuild the RAG pedagogical index (admin only)
+POST {{baseUrl}}/admin/rag/reindex
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{}
+
 ### Save a corrected journal entry
 POST {{baseUrl}}/api/journal
 Authorization: Bearer {{token}}
