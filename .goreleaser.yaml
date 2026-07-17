@@ -33,6 +33,21 @@ archives:
 checksum:
   name_template: "checksums.txt"
 
+homebrew_casks:
+  - name: korean-tui
+    ids:
+      - tui
+    binaries:
+      - korean-tui
+    repository:
+      owner: arthurblanchet59
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    directory: Casks
+    homepage: "https://github.com/arthurblanchet59/korean-learning-go"
+    description: "Client terminal pour reviser le coreen (korean-learning-go)"
+
 changelog:
   sort: asc
   filters:
