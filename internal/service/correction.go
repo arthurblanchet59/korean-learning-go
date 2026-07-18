@@ -70,3 +70,12 @@ func containsLatin(value string) bool {
 	}
 	return false
 }
+
+func containsHangul(value string) bool {
+	for _, r := range value {
+		if unicode.In(r, unicode.Hangul) {
+			return true
+		}
+	}
+	return false
+}

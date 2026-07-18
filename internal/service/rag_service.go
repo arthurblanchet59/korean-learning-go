@@ -64,6 +64,10 @@ func NewRAGCorrector(repository repository.KnowledgeRepository, embedder Embeddi
 }
 
 func (corrector *RAGCorrector) Correct(ctx context.Context, input string) (core.CorrectionResult, error) {
+	if !containsHangul(input) {
+		return corrector.generator.CorrectWithContext(ctx, input, nil)
+	}
+
 	chunks, err := corrector.repository.ListKnowledgeChunks(ctx, corrector.embedder.Model())
 	if err != nil {
 		return core.CorrectionResult{}, fmt.Errorf("load pedagogical index: %w", err)

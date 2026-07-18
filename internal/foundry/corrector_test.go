@@ -66,6 +66,40 @@ func TestCorrectWithContextAddsPedagogicalSources(t *testing.T) {
 	}
 }
 
+func TestCorrectPromptTranslatesForeignAndMixedText(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		var payload chatRequest
+		if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+			t.Fatal(err)
+		}
+		prompt := payload.Messages[0].Content
+		for _, expected := range []string{
+			"traduis-le entierement vers le coreen",
+			"melange du coreen et une autre langue",
+			"traduis les fragments etrangers",
+			"ne lui invente pas de traduction",
+		} {
+			if !strings.Contains(prompt, expected) {
+				t.Fatalf("translation instruction %q is missing from prompt: %q", expected, prompt)
+			}
+		}
+		_, _ = response.Write([]byte(`{"choices":[{"message":{"content":"{\"correctedText\":\"저는 학생이에요.\",\"corrections\":[{\"original\":\"Je suis étudiant.\",\"replacement\":\"저는 학생이에요.\",\"reason\":\"Traduction naturelle en coréen.\"}]}"}}]}`))
+	}))
+	defer server.Close()
+
+	corrector, err := NewCorrector(server.URL, "test-key", "DeepSeek-V3.2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := corrector.Correct(context.Background(), "Je suis étudiant.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.CorrectedText != "저는 학생이에요." || len(result.Corrections) != 1 {
+		t.Fatalf("unexpected translation: %+v", result)
+	}
+}
+
 func TestCorrectWrapsFoundryHTTPError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, _ *http.Request) {
 		http.Error(response, `{"error":{"message":"quota exceeded"}}`, http.StatusTooManyRequests)

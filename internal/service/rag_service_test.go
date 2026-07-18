@@ -15,6 +15,7 @@ type knowledgeRepositoryStub struct {
 	index        domain.KnowledgeIndex
 	chunks       []domain.KnowledgeChunk
 	replaceCalls int
+	chunkCalls   int
 }
 
 func (repositoryStub *knowledgeRepositoryStub) ListKnowledgeLessons(context.Context) ([]core.Lesson, error) {
@@ -29,6 +30,7 @@ func (repositoryStub *knowledgeRepositoryStub) FindKnowledgeIndex(context.Contex
 }
 
 func (repositoryStub *knowledgeRepositoryStub) ListKnowledgeChunks(context.Context, string) ([]domain.KnowledgeChunk, error) {
+	repositoryStub.chunkCalls++
 	return repositoryStub.chunks, nil
 }
 
@@ -41,6 +43,7 @@ func (repositoryStub *knowledgeRepositoryStub) ReplaceKnowledgeIndex(_ context.C
 
 type embeddingProviderStub struct {
 	documentCalls int
+	queryCalls    int
 	queryVector   []float64
 }
 
@@ -57,6 +60,7 @@ func (provider *embeddingProviderStub) EmbedDocuments(_ context.Context, texts [
 }
 
 func (provider *embeddingProviderStub) EmbedQuery(context.Context, string) ([]float64, error) {
+	provider.queryCalls++
 	return provider.queryVector, nil
 }
 
@@ -127,6 +131,52 @@ func TestRAGCorrectorRetrievesClosestLesson(t *testing.T) {
 	}
 	if len(result.Sources) != 2 || result.Sources[0].Score <= result.Sources[1].Score {
 		t.Fatalf("unexpected public sources: %+v", result.Sources)
+	}
+}
+
+func TestRAGCorrectorTranslatesForeignTextWithoutRetrieval(t *testing.T) {
+	repositoryStub := &knowledgeRepositoryStub{
+		chunks: []domain.KnowledgeChunk{{
+			ID: "lesson-1", Title: "Une lecon", Level: "A1", Content: "Contenu",
+			Embedding: []float64{1, 0}, EmbeddingModel: "embed-v-4-0",
+		}},
+	}
+	embedder := &embeddingProviderStub{queryVector: []float64{1, 0}}
+	generator := &contextualCorrectorStub{}
+	corrector := NewRAGCorrector(repositoryStub, embedder, generator)
+
+	result, err := corrector.Correct(context.Background(), "Je suis etudiant.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repositoryStub.chunkCalls != 0 || embedder.queryCalls != 0 {
+		t.Fatalf("foreign text should bypass retrieval: chunks=%d embeddings=%d", repositoryStub.chunkCalls, embedder.queryCalls)
+	}
+	if len(generator.sources) != 0 || len(result.Sources) != 0 {
+		t.Fatalf("foreign translation should not expose pedagogical sources: %+v", result.Sources)
+	}
+}
+
+func TestRAGCorrectorRetrievesForMixedKoreanText(t *testing.T) {
+	repositoryStub := &knowledgeRepositoryStub{
+		chunks: []domain.KnowledgeChunk{{
+			ID: "mixed-1", Title: "Phrase mixte", Level: "A1", Content: "Contenu",
+			Embedding: []float64{1, 0}, EmbeddingModel: "embed-v-4-0",
+		}},
+	}
+	embedder := &embeddingProviderStub{queryVector: []float64{1, 0}}
+	generator := &contextualCorrectorStub{}
+	corrector := NewRAGCorrector(repositoryStub, embedder, generator)
+
+	result, err := corrector.Correct(context.Background(), "\uC624\uB298 je suis fatigue.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repositoryStub.chunkCalls != 1 || embedder.queryCalls != 1 {
+		t.Fatalf("mixed Korean text should use retrieval: chunks=%d embeddings=%d", repositoryStub.chunkCalls, embedder.queryCalls)
+	}
+	if len(generator.sources) != 1 || len(result.Sources) != 1 {
+		t.Fatalf("mixed Korean text should keep relevant sources: %+v", result.Sources)
 	}
 }
 

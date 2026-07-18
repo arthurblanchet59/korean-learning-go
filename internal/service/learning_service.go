@@ -168,11 +168,22 @@ func (service *StudyService) UpdateLessonProgress(ctx context.Context, userID st
 }
 
 func (service *StudyService) ListJournalEntries(ctx context.Context, userID string) ([]core.JournalEntry, error) {
-	return service.journal.ListJournalEntries(ctx, userID)
+	entries, err := service.journal.ListJournalEntries(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	for index := range entries {
+		entries[index] = hideIrrelevantJournalSources(entries[index])
+	}
+	return entries, nil
 }
 
 func (service *StudyService) JournalEntryByID(ctx context.Context, userID string, id string) (core.JournalEntry, error) {
-	return service.journal.FindJournalEntryByID(ctx, userID, strings.TrimSpace(id))
+	entry, err := service.journal.FindJournalEntryByID(ctx, userID, strings.TrimSpace(id))
+	if err != nil {
+		return core.JournalEntry{}, err
+	}
+	return hideIrrelevantJournalSources(entry), nil
 }
 
 func (service *StudyService) CreateJournalEntry(ctx context.Context, userID string, input JournalInput) (core.JournalEntry, error) {
@@ -231,6 +242,13 @@ func (service *StudyService) CorrectJournalText(ctx context.Context, text string
 		return core.CorrectionResult{}, fmt.Errorf("journal text is required")
 	}
 	return service.corrector.Correct(ctx, text)
+}
+
+func hideIrrelevantJournalSources(entry core.JournalEntry) core.JournalEntry {
+	if !containsHangul(entry.OriginalText) {
+		entry.Sources = []core.CorrectionSource{}
+	}
+	return entry
 }
 
 func (service *StudyService) KnowledgeIndexStatus(ctx context.Context) (KnowledgeIndexStatus, error) {

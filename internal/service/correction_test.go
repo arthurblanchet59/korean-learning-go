@@ -52,3 +52,21 @@ func TestStudyServiceUsesInjectedKoreanCorrector(t *testing.T) {
 		t.Fatalf("unexpected injected correction: %+v", result)
 	}
 }
+
+func TestHideIrrelevantJournalSourcesForLegacyForeignEntry(t *testing.T) {
+	foreign := hideIrrelevantJournalSources(core.JournalEntry{
+		OriginalText: "testabt",
+		Sources:      []core.CorrectionSource{{ID: "lesson-1"}},
+	})
+	if len(foreign.Sources) != 0 {
+		t.Fatalf("foreign legacy entry should not expose RAG sources: %+v", foreign.Sources)
+	}
+
+	korean := hideIrrelevantJournalSources(core.JournalEntry{
+		OriginalText: "\uC624\uB298\uC740 \uC88B\uC740 \uB0A0\uC774\uC5D0\uC694.",
+		Sources:      []core.CorrectionSource{{ID: "lesson-1"}},
+	})
+	if len(korean.Sources) != 1 {
+		t.Fatalf("Korean entry should keep its RAG sources: %+v", korean.Sources)
+	}
+}
