@@ -139,7 +139,7 @@ func init() {
 
 var (
 	version       = "dev"
-	defaultAPIURL = "http://localhost:8080"
+	defaultAPIURL = localDevelopmentAPIURL
 )
 
 func main() {
@@ -154,6 +154,7 @@ func main() {
 
 	configValue, configErr := loadConfig()
 	stateValue, stateErr := loadState()
+	configValue = migrateReleaseAPIURL(configValue)
 	if envURL := strings.TrimSpace(os.Getenv("KOREAN_API_URL")); envURL != "" {
 		configValue.APIURL = envURL
 	}

@@ -26,6 +26,22 @@ func TestDefaultConfigUsesBuildAPIURL(t *testing.T) {
 	}
 }
 
+func TestReleaseBuildMigratesLegacyLocalAPIURL(t *testing.T) {
+	previous := defaultAPIURL
+	defaultAPIURL = "https://korean-learning-app-awe6anaeegavazcs.francecentral-01.azurewebsites.net/"
+	t.Cleanup(func() { defaultAPIURL = previous })
+
+	migrated := migrateReleaseAPIURL(AppConfig{APIURL: localDevelopmentAPIURL, Theme: "emerald"})
+	if migrated.APIURL != "https://korean-learning-app-awe6anaeegavazcs.francecentral-01.azurewebsites.net" {
+		t.Fatalf("legacy local API URL was not migrated: %#v", migrated)
+	}
+
+	custom := migrateReleaseAPIURL(AppConfig{APIURL: "http://localhost:9090", Theme: "emerald"})
+	if custom.APIURL != "http://localhost:9090" {
+		t.Fatalf("custom API URL should be preserved: %#v", custom)
+	}
+}
+
 func TestConfigAndStateAreStoredAsJSON(t *testing.T) {
 	directory := useTemporaryConfigDirectory(t)
 	config := AppConfig{APIURL: "https://api.example.test/", Theme: "ocean"}

@@ -11,7 +11,10 @@ import (
 	"time"
 )
 
-const localDataVersion = 1
+const (
+	localDataVersion       = 1
+	localDevelopmentAPIURL = "http://localhost:8080"
+)
 
 type AppConfig struct {
 	Version int    `json:"version"`
@@ -35,6 +38,15 @@ type RemoteBackup struct {
 
 func defaultConfig() AppConfig {
 	return AppConfig{Version: localDataVersion, APIURL: defaultAPIURL, Theme: "emerald"}
+}
+
+func migrateReleaseAPIURL(config AppConfig) AppConfig {
+	savedURL := strings.TrimRight(strings.TrimSpace(config.APIURL), "/")
+	buildURL := strings.TrimRight(strings.TrimSpace(defaultAPIURL), "/")
+	if savedURL == localDevelopmentAPIURL && buildURL != localDevelopmentAPIURL {
+		config.APIURL = buildURL
+	}
+	return config
 }
 
 func defaultState() AppState {
