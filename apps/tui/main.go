@@ -137,7 +137,10 @@ func init() {
 	applyTheme("emerald")
 }
 
-var version = "dev"
+var (
+	version       = "dev"
+	defaultAPIURL = "http://localhost:8080"
+)
 
 func main() {
 	apiURL := flag.String("api", "", "URL du backend (prioritaire sur config.json)")

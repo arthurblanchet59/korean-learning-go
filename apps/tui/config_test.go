@@ -16,6 +16,16 @@ func useTemporaryConfigDirectory(t *testing.T) string {
 	return filepath.Join(directory, "korean-learning-go")
 }
 
+func TestDefaultConfigUsesBuildAPIURL(t *testing.T) {
+	previous := defaultAPIURL
+	defaultAPIURL = "https://api.example.test"
+	t.Cleanup(func() { defaultAPIURL = previous })
+
+	if config := defaultConfig(); config.APIURL != defaultAPIURL {
+		t.Fatalf("default config ignored build API URL: %#v", config)
+	}
+}
+
 func TestConfigAndStateAreStoredAsJSON(t *testing.T) {
 	directory := useTemporaryConfigDirectory(t)
 	config := AppConfig{APIURL: "https://api.example.test/", Theme: "ocean"}

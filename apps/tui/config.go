@@ -34,7 +34,7 @@ type RemoteBackup struct {
 }
 
 func defaultConfig() AppConfig {
-	return AppConfig{Version: localDataVersion, APIURL: "http://localhost:8080", Theme: "emerald"}
+	return AppConfig{Version: localDataVersion, APIURL: defaultAPIURL, Theme: "emerald"}
 }
 
 func defaultState() AppState {
